@@ -898,12 +898,82 @@ def review_gap_opportunity(theme: str) -> str:
     return opportunities.get(theme, "Turn repeated complaints into operating standards for the new concept.")
 
 
+def estimate_monthly_rent(region: str, budget: float) -> int:
+    lower = region.lower()
+    if any(city in lower for city in ["mumbai", "bandra", "andheri", "delhi", "gurgaon", "gurugram"]):
+        base = 180000
+    elif any(city in lower for city in ["bangalore", "bengaluru", "koramangala", "indiranagar", "hyderabad", "pune"]):
+        base = 130000
+    elif any(city in lower for city in ["chennai", "kolkata", "ahmedabad", "jaipur", "lucknow"]):
+        base = 90000
+    else:
+        base = 65000
+
+    if budget and budget > 0:
+        base = min(base, round(budget * 0.18))
+    return max(0, int(base))
+
+
+def build_budget_plan(budget: float, owns_place: bool, region: str, idea: str) -> Dict[str, Any]:
+    total = max(0, int(float(budget or 0)))
+    if total <= 0:
+        total = 500000
+
+    rent = 0 if owns_place else estimate_monthly_rent(region, total)
+    distribution = [
+        ("Rent / deposit", rent, "Excluded because the founder selected own place." if owns_place else f"Estimated local setup rent for {region}."),
+        ("Salaries", round(total * (0.34 if owns_place else 0.28)), "Founder/operator, core staff, and part-time support for the first launch phase."),
+        ("Inventory / product", round(total * 0.18), "Initial stock, raw materials, vendor setup, and packaging."),
+        ("Marketing", round(total * 0.14), "Launch offers, local ads, creator outreach, signage, and community promotion."),
+        ("Technology", round(total * 0.10), "Website/app, point-of-sale tools, automation, analytics, and subscriptions."),
+        ("Legal / licenses", round(total * 0.07), "Registrations, local permissions, compliance, accounting, and professional fees."),
+        ("Operations buffer", 0, "Emergency cash for repairs, delays, refunds, and unexpected launch costs."),
+    ]
+    used_before_buffer = sum(amount for _, amount, _ in distribution[:-1])
+    buffer = max(0, total - used_before_buffer)
+    distribution[-1] = ("Operations buffer", buffer, distribution[-1][2])
+
+    if used_before_buffer > total:
+        scale = total / used_before_buffer
+        adjusted = []
+        for name, amount, note in distribution[:-1]:
+            adjusted.append((name, round(amount * scale), note))
+        distribution = adjusted + [("Operations buffer", max(0, total - sum(item[1] for item in adjusted)), distribution[-1][2])]
+
+    categories = [
+        {
+            "name": name,
+            "amount": int(amount),
+            "percent": round((amount / total) * 100) if total else 0,
+            "note": note,
+        }
+        for name, amount, note in distribution
+        if amount > 0 or name == "Rent / deposit"
+    ]
+
+    return {
+        "totalBudget": total,
+        "currency": "INR",
+        "ownsPlace": bool(owns_place),
+        "rentIncluded": not owns_place,
+        "rentEstimate": rent,
+        "assumptions": [
+            f"Budget plan is an estimate for launching '{idea[:80]}' in {region}.",
+            "All amounts are in INR and should be validated with local quotes before spending.",
+            "Rent is excluded when own place is selected; otherwise a locality-level estimate is included.",
+        ],
+        "categories": categories,
+    }
+
+
 def fallback_agent_output(
     idea: str,
     region: str,
     agent_id: str,
     context: Dict[str, Any],
     competitor_evidence: List[Dict[str, str]] | None = None,
+    budget: float = 0,
+    owns_place: bool = False,
 ) -> Dict[str, Any]:
     domain = infer_domain(idea)
     market = score_from_idea(idea, 3)
@@ -982,6 +1052,8 @@ def fallback_agent_output(
             }
         ]
 
+    budget_plan = build_budget_plan(budget, owns_place, region, idea)
+
     report = {
         "executiveSummary": (
             f"{idea} targets {domain['market']} in {region} and stands out strongest if it builds a structured, "
@@ -1015,6 +1087,7 @@ def fallback_agent_output(
             "growth": f"Fast growth rates of 18-25% annually in {region} fueled by rapid urbanization and wellness lifestyle shifts.",
             "willingnessToPay": f"Highest when tied to luxury wellness rituals, daily premium drinks, or high-value remote work comfort."
         },
+        "budgetPlan": budget_plan,
         "competitors": competitors,
         "reviewGaps": review_gaps,
         "technicalFeasibility": {
@@ -1213,6 +1286,8 @@ def provider_meta(data: Dict[str, Any]) -> Dict[str, Any]:
 def build_prompt(
     idea: str,
     region: str,
+    budget: float,
+    owns_place: bool,
     agent: Dict[str, str],
     context: Dict[str, Any],
     competitor_evidence: str = "",
@@ -1285,6 +1360,15 @@ Return strict JSON only:
     "verdict": { "label": "GO|PIVOT|NO-GO", "rationale": "direct explanation", "confidence": number },
     "scores": { "market": number, "timing": number, "defensibility": number, "feasibility": number, "risk": number, "founderFit": number, "overall": number },
     "marketAnalysis": { "size": "TAM/SAM/SOM with numbers and assumptions", "audience": "specific ICP", "growth": "specific trends/reports", "willingnessToPay": "budget and pricing logic" },
+    "budgetPlan": {
+      "totalBudget": number,
+      "currency": "INR",
+      "ownsPlace": boolean,
+      "rentIncluded": boolean,
+      "rentEstimate": number,
+      "assumptions": ["plain language assumption"],
+      "categories": [{ "name": "Rent / deposit|Salaries|Inventory / product|Marketing|Technology|Legal / licenses|Operations buffer", "amount": number, "percent": number, "note": "easy explanation" }]
+    },
     "competitors": [
       { "name": "real company", "positioning": "include pricing and funding/status here", "strengths": "specific strengths", "weakness": "specific weakness", "threatLevel": "Low|Medium|High" }
     ],
@@ -1296,6 +1380,7 @@ Return strict JSON only:
   }
 }
 End the rationale with exactly why the verdict is GO, PIVOT, or NO-GO.
+Budget rules: use the user budget below. If ownsPlace is true, do not include rent as a cost. If ownsPlace is false, include a practical average rent/deposit estimate for the target locality and state it is an estimate.
 """
 
     return f"""
@@ -1306,6 +1391,12 @@ Exact startup idea to analyze:
 
 Target Locality/Region (Compulsory):
 {region}
+
+User launch budget:
+INR {budget or 0}
+
+Own place selected:
+{"Yes - exclude rent from budget distribution." if owns_place else "No - include rent using a local average estimate."}
 
 Your required mission:
 {AGENT_INSTRUCTIONS[agent_id]}
@@ -1350,6 +1441,8 @@ def run_agent():
     payload = request.get_json(force=True)
     idea = payload.get("idea", "").strip()
     region = payload.get("region", "").strip()
+    budget = payload.get("budget") or 0
+    owns_place = bool(payload.get("ownsPlace", False))
     agent = payload.get("agent", {})
     context = payload.get("context", {})
     agent_id = agent.get("id")
@@ -1365,8 +1458,8 @@ def run_agent():
     if agent_id in {"competitor", "report-generator"}:
         competitor_evidence = search_competitor_evidence(idea, region)
 
-    default_output = fallback_agent_output(idea, region, agent_id, context, competitor_evidence)
-    data = call_llm(build_prompt(idea, region, agent, context, format_competitor_evidence(competitor_evidence)))
+    default_output = fallback_agent_output(idea, region, agent_id, context, competitor_evidence, budget, owns_place)
+    data = call_llm(build_prompt(idea, region, budget, owns_place, agent, context, format_competitor_evidence(competitor_evidence)))
     meta = provider_meta(data)
 
     if meta["provider"] == "structured-fallback":

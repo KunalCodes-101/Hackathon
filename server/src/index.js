@@ -8,6 +8,8 @@ import { Server } from 'socket.io';
 import { ZodError } from 'zod';
 import { config } from './config.js';
 import { createAnalysisRouter } from './routes/analysisRoutes.js';
+import { authenticate, createAuthRouter } from './routes/authRoutes.js';
+import { createJobsRouter } from './routes/jobsRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -18,7 +20,8 @@ function isAllowedOrigin(origin) {
 
   try {
     const { hostname, port, protocol } = new URL(origin);
-    const isDevClientPort = port === '5173';
+    const portNumber = Number(port);
+    const isDevClientPort = portNumber >= 5173 && portNumber <= 5179;
     const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(hostname);
     const isPrivateLan =
       /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
@@ -52,6 +55,7 @@ app.use(helmet());
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
+app.use(authenticate);
 
 io.on('connection', (socket) => {
   socket.on('analysis:join', (analysisId) => {
@@ -67,7 +71,9 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'founderos-api' });
 });
 
+app.use('/api/auth', createAuthRouter());
 app.use('/api/analyses', createAnalysisRouter(io));
+app.use('/api/jobs', createJobsRouter());
 
 app.use((error, _req, res, _next) => {
   if (error instanceof ZodError) {

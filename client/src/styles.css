@@ -8,31 +8,38 @@
 
 html {
   scroll-behavior: smooth;
+  font-size: 17px;
+}
+
+@media (max-width: 640px) {
+  html {
+    font-size: 16px;
+  }
 }
 
 :root,
 [data-theme='dark'] {
-  --color-bg: #030303;
-  --color-panel: #0d0d0d;
-  --color-raised: #15110f;
-  --color-line: #2b2927;
-  --color-muted: #b6b0aa;
-  --color-text: #fff8f1;
-  --color-accent: #f97316;
+  --color-bg: #090b0f;
+  --color-panel: #11151c;
+  --color-raised: #171d26;
+  --color-line: #293241;
+  --color-muted: #c3ccd7;
+  --color-text: #f6f8fb;
+  --color-accent: #14b8a6;
   --color-green: #22c55e;
   --color-amber: #f59e0b;
   --color-danger: #ef4444;
-  --shadow-panel: 0 20px 60px rgba(0, 0, 0, 0.22);
+  --shadow-panel: 0 22px 60px rgba(0, 0, 0, 0.26);
 }
 
 [data-theme='light'] {
-  --color-bg: #fbfaf8;
+  --color-bg: #f7f9fc;
   --color-panel: #ffffff;
-  --color-raised: #f5efe9;
-  --color-line: #e6ded6;
-  --color-muted: #736b63;
-  --color-text: #17120f;
-  --color-accent: #c2410c;
+  --color-raised: #eef3f7;
+  --color-line: #d9e1ea;
+  --color-muted: #4b5563;
+  --color-text: #111827;
+  --color-accent: #0f766e;
   --color-green: #15803d;
   --color-amber: #b45309;
   --color-danger: #dc2626;
@@ -42,7 +49,9 @@ html {
 body {
   margin: 0;
   min-width: 320px;
-  background: var(--color-bg);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 34rem),
+    var(--color-bg);
   font-family: Inter, system-ui, sans-serif;
   color: var(--color-text);
 }
@@ -59,7 +68,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(45, 212, 191, 0.28);
+  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
 }
 
 ::-webkit-scrollbar {
@@ -85,6 +94,152 @@ textarea {
 
 .surface-shadow {
   box-shadow: var(--shadow-panel);
+}
+
+.interactive-bg {
+  overflow: hidden;
+  opacity: 0.92;
+}
+
+.mesh-grid {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 0, transparent 11.8%, color-mix(in srgb, var(--color-line) 45%, transparent) 12%, transparent 12.2%, transparent 87.8%, color-mix(in srgb, var(--color-line) 45%, transparent) 88%, transparent 88.2%),
+    linear-gradient(color-mix(in srgb, var(--color-line) 28%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-line) 20%, transparent) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 112px, 112px 100%;
+  mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
+}
+
+.aurora {
+  position: absolute;
+  width: 46rem;
+  height: 46rem;
+  border-radius: 999px;
+  filter: blur(44px);
+  mix-blend-mode: screen;
+  opacity: 0.24;
+  animation: drift 14s ease-in-out infinite alternate;
+}
+
+.aurora-one {
+  left: 10%;
+  top: 4rem;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 72%, transparent), transparent 65%);
+}
+
+.aurora-two {
+  right: 6%;
+  top: 16rem;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.55), transparent 66%);
+  animation-delay: -5s;
+}
+
+.signal-orbit {
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+  border-radius: 999px;
+  animation: pulse-ring 4.6s ease-in-out infinite;
+}
+
+.orbit-a {
+  right: 13%;
+  top: 9rem;
+  width: 15rem;
+  height: 15rem;
+}
+
+.orbit-b {
+  left: 8%;
+  bottom: 10rem;
+  width: 11rem;
+  height: 11rem;
+  animation-delay: -2s;
+}
+
+.floating-node {
+  position: absolute;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: var(--color-accent);
+  box-shadow: 0 0 34px color-mix(in srgb, var(--color-accent) 88%, transparent);
+  animation: float-node 7s ease-in-out infinite alternate;
+}
+
+.node-a {
+  left: 18%;
+  top: 18rem;
+}
+
+.node-b {
+  right: 24%;
+  top: 31rem;
+  animation-delay: -3s;
+}
+
+.node-c {
+  right: 9%;
+  bottom: 13rem;
+  animation-delay: -5s;
+}
+
+.glass-panel {
+  background: color-mix(in srgb, var(--color-panel) 84%, transparent);
+  box-shadow: var(--shadow-panel), inset 0 1px 0 color-mix(in srgb, #ffffff 8%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.data-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.data-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 38%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.data-card:hover::before {
+  opacity: 1;
+}
+
+.status-pills .mx-2 {
+  display: none;
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(-2rem, -1rem, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2rem, 1.5rem, 0) scale(1.08);
+  }
+}
+
+@keyframes pulse-ring {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.28;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.55;
+  }
+}
+
+@keyframes float-node {
+  from {
+    transform: translateY(-10px);
+  }
+  to {
+    transform: translateY(14px);
+  }
 }
 
 .input-surface {

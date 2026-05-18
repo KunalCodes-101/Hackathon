@@ -77,6 +77,8 @@ export async function startAnalysisRun({ analysisId, io }) {
       const result = await runAgent({
         idea: analysis.idea,
         region: analysis.region,
+        budget: analysis.budget,
+        ownsPlace: analysis.ownsPlace,
         agent,
         context
       });

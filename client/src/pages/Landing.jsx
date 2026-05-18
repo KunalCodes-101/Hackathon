@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, FileText, Layers3, Loader2, Play, ShieldAlert, SlidersHorizontal } from 'lucide-react';
+import { ArrowRight, CheckCircle2, FileText, Layers3, Loader2, MapPin, Play, Radar, ShieldAlert, SlidersHorizontal, WalletCards } from 'lucide-react';
 import Chrome from '../components/Chrome.jsx';
-import { Card, MetricCard, SegmentedControl, StatusPill } from '../components/ui.jsx';
+import { Card, MetricCard, StatusPill } from '../components/ui.jsx';
 import { createAnalysis, listAnalyses } from '../api.js';
 import { formatTime } from '../utils/format.js';
 
@@ -26,6 +26,8 @@ const examples = [
 export default function Landing() {
   const [idea, setIdea] = useState('');
   const [region, setRegion] = useState('');
+  const [budget, setBudget] = useState('');
+  const [ownsPlace, setOwnsPlace] = useState(false);
   const [loading, setLoading] = useState(false);
   const [recent, setRecent] = useState([]);
   const [error, setError] = useState('');
@@ -54,7 +56,7 @@ export default function Landing() {
     setError('');
     setLoading(true);
     try {
-      const analysis = await createAnalysis(idea, region);
+      const analysis = await createAnalysis(idea, region, Number(budget) || 0, ownsPlace);
       navigate(`/analysis/${analysis._id}`);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -66,58 +68,95 @@ export default function Landing() {
   return (
     <Chrome>
       <section className="mx-auto flex w-full max-w-7xl flex-col items-center px-5 pb-16 pt-8 text-center">
-        <p className="text-sm font-medium uppercase tracking-[0.12em] text-teal">
-          Validate. Score. Decide.
-        </p>
+        <div className="grid w-full items-center gap-8 text-left lg:grid-cols-[minmax(0,1fr)_420px]">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-teal/30 bg-teal/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-teal">
+              <Radar className="h-4 w-4" />
+              Validation command center
+            </div>
+            <h1 className="mt-5 max-w-4xl text-4xl font-semibold leading-[1.05] tracking-normal text-white sm:text-5xl lg:text-6xl">
+              Turn a rough business idea into a clean launch decision.
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-muted md:text-lg">
+              Enter the idea, locality, and budget. FounderOS builds the market memo, competitor map, risk register, scorecard, and budget distribution.
+            </p>
+            <div className="mt-8 grid max-w-3xl gap-3 sm:grid-cols-3">
+              <SignalCard icon={Layers3} label="8 agents" value="Live workflow" />
+              <SignalCard icon={MapPin} label="Local data" value="Region first" />
+              <SignalCard icon={WalletCards} label="Budget map" value="Rent aware" />
+            </div>
+          </div>
 
-        <h1 className="mt-5 max-w-5xl text-4xl font-light leading-[1.08] tracking-normal text-white sm:text-5xl lg:text-6xl">
-          Build the startup people actually want.
-        </h1>
-
-        <p className="mt-5 max-w-3xl text-base leading-7 text-muted md:text-lg">
-          FounderOS runs an eight-agent validation flow and turns a rough idea into a clean regional investor-style decision memo.
-        </p>
-
-        <form
+          <form
           onSubmit={submit}
-          className="mt-8 w-full max-w-4xl rounded-3xl border border-line bg-panel/90 p-3 text-left surface-shadow backdrop-blur"
+          className="glass-panel w-full rounded-2xl border border-line p-4 text-left"
         >
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Start analysis</h2>
+              <p className="mt-1 text-sm text-muted">The report opens when the agent run is complete.</p>
+            </div>
+            <span className="rounded-full border border-green/30 bg-green/10 px-3 py-1 text-xs font-medium text-green">Ready</span>
+          </div>
           <textarea
             value={idea}
             onChange={(event) => setIdea(event.target.value)}
             placeholder="Describe your startup idea..."
-            className="input-surface h-28 w-full resize-none rounded-2xl border border-line px-5 py-4 text-base leading-7 outline-none transition placeholder:text-muted/60 focus:border-teal focus:shadow-focus"
+            className="input-surface h-32 w-full resize-none rounded-xl border border-line px-5 py-4 text-base leading-7 outline-none transition placeholder:text-muted/60 focus:border-teal focus:shadow-focus"
           />
 
           <input
             type="text"
             value={region}
             onChange={(event) => setRegion(event.target.value)}
-            placeholder="Target region/locality (e.g. Koramangala, Bangalore) - Compulsory"
-            className="input-surface mt-3 h-14 w-full rounded-2xl border border-line px-5 py-4 text-base outline-none transition placeholder:text-muted/60 focus:border-teal focus:shadow-focus"
+            placeholder="Target region/locality (e.g. Koramangala, Bangalore)"
+            className="input-surface mt-3 h-14 w-full rounded-xl border border-line px-5 py-4 text-base outline-none transition placeholder:text-muted/60 focus:border-teal focus:shadow-focus"
             required
           />
 
-          <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="text-xs text-muted">
-              <span>{idea.trim().length < 12 ? 'Minimum 12 characters required for idea' : 'Regional validation ready'}</span>
+          <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
+            <input
+              type="number"
+              min="0"
+              value={budget}
+              onChange={(event) => setBudget(event.target.value)}
+              placeholder="Launch budget in INR"
+              className="input-surface h-14 w-full rounded-xl border border-line px-5 py-4 text-base outline-none transition placeholder:text-muted/60 focus:border-teal focus:shadow-focus"
+            />
+            <label className="input-surface flex h-14 cursor-pointer items-center justify-center gap-3 rounded-xl border border-line px-4 py-4 text-sm text-white transition hover:border-teal">
+              <input
+                type="checkbox"
+                checked={ownsPlace}
+                onChange={(event) => setOwnsPlace(event.target.checked)}
+                className="h-4 w-4 accent-teal"
+              />
+              Own place
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-4">
+            <div className="status-pills flex flex-wrap gap-2 text-xs text-muted">
+              <span className="rounded-full border border-line bg-raised px-3 py-1">{idea.trim().length < 12 ? 'Idea needs 12+ chars' : 'Idea ready'}</span>
               <span className="mx-2">•</span>
-              <span>{!region.trim() ? 'Region is required' : 'Region ready'}</span>
+              <span className="rounded-full border border-line bg-raised px-3 py-1">{!region.trim() ? 'Region required' : 'Region ready'}</span>
+              <span className="mx-2">|</span>
+              <span className="rounded-full border border-line bg-raised px-3 py-1">{budget ? 'Budget ready' : 'Budget optional'}</span>
             </div>
 
             <button
               disabled={loading || idea.trim().length < 12 || !region.trim()}
-              className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-teal px-8 text-base font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-95 disabled:translate-y-0 disabled:cursor-not-allowed disabled:border disabled:border-line disabled:bg-raised disabled:text-muted"
+              className="inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-teal px-8 text-base font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-95 disabled:translate-y-0 disabled:cursor-not-allowed disabled:border disabled:border-line disabled:bg-raised disabled:text-muted"
             >
-              {loading ? 'Starting' : 'Start analysis'}
+              {loading ? 'Starting analysis' : 'Start analysis'}
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             </button>
           </div>
           <div className="mt-3 flex items-center justify-between text-xs text-muted">
             <span>{idea.trim().length}/2500 characters</span>
           </div>
-          {error && <p className="mt-3 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-red-100">{error}</p>}
+          {error && <p className="mt-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-red-100">{friendlyError(error)}</p>}
         </form>
+        </div>
 
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           {examples.map((sample) => (
@@ -215,4 +254,27 @@ function Note({ icon: Icon, tone, title, body }) {
       </div>
     </div>
   );
+}
+
+function SignalCard({ icon: Icon, label, value }) {
+  return (
+    <div className="data-card rounded-lg border border-line bg-panel/70 p-4 backdrop-blur">
+      <div className="relative flex items-center gap-3">
+        <span className="grid h-10 w-10 place-items-center rounded-lg border border-teal/30 bg-teal/10">
+          <Icon className="h-5 w-5 text-teal" />
+        </span>
+        <div>
+          <div className="text-sm font-semibold text-white">{label}</div>
+          <div className="mt-1 text-xs text-muted">{value}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function friendlyError(message) {
+  if (String(message).toLowerCase().includes('network')) {
+    return 'Could not reach the local API. Make sure the backend is running on port 5000, then try again.';
+  }
+  return message;
 }

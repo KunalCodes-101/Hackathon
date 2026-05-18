@@ -3,8 +3,8 @@ export default function ScoreRing({ score = 0, label = 'Score' }) {
   return (
     <div className="flex items-center gap-5">
       <div
-        className="grid h-28 w-28 place-items-center rounded-full"
-        style={{ background: `conic-gradient(#2DD4BF ${angle}deg, rgba(154,167,184,0.14) 0deg)` }}
+        className="grid h-28 w-28 shrink-0 place-items-center rounded-full"
+        style={{ background: `conic-gradient(var(--color-accent) ${angle}deg, color-mix(in srgb, var(--color-muted) 16%, transparent) 0deg)` }}
       >
         <div className="grid h-20 w-20 place-items-center rounded-full border border-line bg-ink">
           <div className="text-center">

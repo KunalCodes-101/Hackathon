@@ -6,10 +6,12 @@ const client = axios.create({
   timeout: 120000
 });
 
-export async function runAgent({ idea, region, agent, context }) {
+export async function runAgent({ idea, region, budget, ownsPlace, agent, context }) {
   const { data } = await client.post('/agent/run', {
     idea,
     region,
+    budget,
+    ownsPlace,
     agent,
     context
   });

@@ -49,6 +49,22 @@ const reportSchema = new mongoose.Schema(
       growth: String,
       willingnessToPay: String
     },
+    budgetPlan: {
+      totalBudget: Number,
+      currency: { type: String, default: 'INR' },
+      ownsPlace: Boolean,
+      rentIncluded: Boolean,
+      rentEstimate: Number,
+      assumptions: [String],
+      categories: [
+        {
+          name: String,
+          amount: Number,
+          percent: Number,
+          note: String
+        }
+      ]
+    },
     competitors: [
       {
         name: String,
@@ -94,7 +110,11 @@ const reportSchema = new mongoose.Schema(
 const analysisSchema = new mongoose.Schema(
   {
     idea: { type: String, required: true, trim: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
     region: { type: String, required: true, trim: true },
+    budget: { type: Number, min: 0, default: 0 },
+    ownsPlace: { type: Boolean, default: false },
+    approvedAt: Date,
     status: {
       type: String,
       enum: ['queued', 'running', 'completed', 'failed'],
