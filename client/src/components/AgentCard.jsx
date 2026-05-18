@@ -11,27 +11,35 @@ const statusIcon = {
 export default function AgentCard({ agent, index }) {
   const Icon = statusIcon[agent.status] || Circle;
   const isRunning = agent.status === 'running';
+  const tone =
+    agent.status === 'completed'
+      ? 'text-green'
+      : agent.status === 'failed'
+        ? 'text-danger'
+        : isRunning
+          ? 'text-teal'
+          : 'text-muted';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
-      className="rounded-lg border border-white/10 bg-white/[0.055] p-4 backdrop-blur-xl"
+      className="rounded-lg border border-line bg-panel p-4"
     >
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Icon className={`h-4 w-4 ${isRunning ? 'animate-spin text-cyan' : agent.status === 'completed' ? 'text-emerald-300' : agent.status === 'failed' ? 'text-rose-300' : 'text-white/35'}`} />
-            <h3 className="text-sm font-semibold text-white">{agent.agentName}</h3>
+            <Icon className={`h-4 w-4 ${isRunning ? 'animate-spin' : ''} ${tone}`} />
+            <h3 className="truncate text-sm font-semibold text-white">{agent.agentName}</h3>
           </div>
-          <p className="mt-2 min-h-10 text-sm leading-6 text-white/60">{agent.message}</p>
+          <p className="mt-2 min-h-10 text-sm leading-5 text-muted">{agent.message}</p>
         </div>
-        <span className="text-xs font-medium uppercase tracking-wide text-white/40">{agent.progress}%</span>
+        <span className="rounded border border-line bg-raised px-2 py-1 font-mono text-xs text-muted">{agent.progress}%</span>
       </div>
-      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
+      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-raised">
         <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-violet via-fuchsia to-cyan"
+          className={`h-full rounded ${agent.status === 'failed' ? 'bg-danger' : agent.status === 'completed' ? 'bg-green' : 'bg-teal'}`}
           initial={{ width: 0 }}
           animate={{ width: `${agent.progress}%` }}
           transition={{ duration: 0.45 }}

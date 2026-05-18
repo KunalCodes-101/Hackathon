@@ -85,6 +85,7 @@ const reportSchema = new mongoose.Schema(
 const analysisSchema = new mongoose.Schema(
   {
     idea: { type: String, required: true, trim: true },
+    region: { type: String, required: true, trim: true },
     status: {
       type: String,
       enum: ['queued', 'running', 'completed', 'failed'],

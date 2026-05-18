@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, ExternalLink, Loader2, Target, TriangleAlert }
 import { PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer, Tooltip } from 'recharts';
 import Chrome from '../components/Chrome.jsx';
 import ScoreRing from '../components/ScoreRing.jsx';
+import { Card } from '../components/ui.jsx';
 import { useAnalysis } from '../hooks/useAnalysis.js';
 import { verdictTone } from '../utils/format.js';
 
@@ -15,7 +16,10 @@ export default function Report() {
     return (
       <Chrome>
         <div className="grid min-h-[70vh] place-items-center">
-          <Loader2 className="h-8 w-8 animate-spin text-cyan" />
+          <div className="flex items-center gap-3 rounded-md border border-line bg-panel px-4 py-3 text-sm text-muted">
+            <Loader2 className="h-4 w-4 animate-spin text-teal" />
+            Loading report
+          </div>
         </div>
       </Chrome>
     );
@@ -25,9 +29,9 @@ export default function Report() {
     return (
       <Chrome>
         <div className="mx-auto max-w-2xl px-5 py-24 text-center">
-          <h1 className="text-3xl font-bold">Report not ready</h1>
-          <p className="mt-3 text-white/55">{error || 'The analysis is still running.'}</p>
-          <Link className="mt-6 inline-flex rounded-md bg-white px-4 py-3 text-sm font-semibold text-ink" to={`/analysis/${id}`}>Back to live analysis</Link>
+          <h1 className="text-2xl font-semibold">Report not ready</h1>
+          <p className="mt-3 text-muted">{error || 'The analysis is still running.'}</p>
+          <Link className="mt-6 inline-flex rounded-full bg-teal px-4 py-3 text-sm font-semibold text-white" to={`/analysis/${id}`}>Back to live analysis</Link>
         </div>
       </Chrome>
     );
@@ -45,43 +49,52 @@ export default function Report() {
 
   return (
     <Chrome>
-      <section className="mx-auto w-full max-w-7xl px-5 pb-16 pt-8">
-        <Link to={`/analysis/${analysis._id}`} className="inline-flex items-center gap-2 text-sm text-white/55 transition hover:text-white">
+      <section className="space-y-5 p-4 md:p-6">
+        <Link to={`/analysis/${analysis._id}`} className="inline-flex items-center gap-2 text-sm text-muted transition hover:text-white">
           <ArrowLeft className="h-4 w-4" />
           Live trace
         </Link>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[0.68fr_0.32fr]">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="rounded-lg border border-white/10 bg-white/[0.055] p-6 backdrop-blur-xl">
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+            <Card>
+            <div className="flex flex-col gap-5 border-b border-line px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
               <ScoreRing score={report.scores.overall} />
-              <div className={`rounded-lg border px-5 py-4 ${verdictTone(report.verdict.label)}`}>
-                <div className="text-xs uppercase tracking-[0.24em]">Verdict</div>
-                <div className="mt-2 text-4xl font-extrabold">{report.verdict.label}</div>
-                <div className="mt-2 text-sm opacity-80">{report.verdict.confidence}% confidence</div>
+              <div className={`rounded-md border px-5 py-4 ${verdictTone(report.verdict.label)}`}>
+                <div className="text-xs uppercase tracking-[0.16em]">Verdict</div>
+                <div className="mt-2 text-3xl font-semibold">{report.verdict.label}</div>
+                <div className="mt-2 font-mono text-sm opacity-80">{report.verdict.confidence}% confidence</div>
               </div>
             </div>
-            <h1 className="mt-8 text-3xl font-bold leading-tight text-white md:text-5xl">{analysis.idea}</h1>
-            <p className="mt-5 max-w-4xl text-lg leading-8 text-white/62">{report.executiveSummary}</p>
-            <p className="mt-4 rounded-lg border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white/58">{report.verdict.rationale}</p>
+            <div className="px-5 py-5">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted">Investment memo</p>
+              <h1 className="mt-2 max-w-5xl text-2xl font-semibold leading-tight text-white md:text-3xl">{analysis.idea}</h1>
+              <p className="mt-5 max-w-5xl text-base leading-7 text-muted">{report.executiveSummary}</p>
+              <p className="mt-4 rounded-xl border border-line bg-raised p-4 text-sm leading-6 text-muted">{report.verdict.rationale}</p>
+            </div>
+            </Card>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="rounded-lg border border-white/10 bg-panel/70 p-5 backdrop-blur-xl">
-            <h2 className="font-semibold text-white">Score radar</h2>
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+            <Card className="p-5">
+            <h2 className="font-semibold text-white">Score distribution</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart data={radar}>
-                  <PolarGrid stroke="rgba(255,255,255,0.14)" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: 'rgba(255,255,255,0.62)', fontSize: 12 }} />
-                  <Tooltip contentStyle={{ background: '#0D1021', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8 }} />
-                  <Radar dataKey="score" stroke="#22D3EE" fill="#8B5CF6" fillOpacity={0.35} />
+                  <PolarGrid stroke="rgba(154,167,184,0.22)" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#9AA7B8', fontSize: 12 }} />
+                  <Tooltip contentStyle={{ background: '#111722', border: '1px solid #273142', borderRadius: 8, color: '#F4F7FA' }} />
+                  <Radar dataKey="score" stroke="#2DD4BF" fill="#2DD4BF" fillOpacity={0.22} />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
+            </Card>
           </motion.div>
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <ScoreTable scores={report.scores} />
+
+        <div className="grid gap-5 xl:grid-cols-2">
           <Panel title="Market Analysis" icon={Target}>
             <Info label="Size" value={report.marketAnalysis.size} />
             <Info label="Audience" value={report.marketAnalysis.audience} />
@@ -97,23 +110,34 @@ export default function Report() {
           </Panel>
         </div>
 
-        <Panel title="Competitor Breakdown" icon={ExternalLink} className="mt-6">
-          <div className="grid gap-4 lg:grid-cols-3">
-            {report.competitors.map((competitor) => (
-              <div key={competitor.name} className="rounded-lg border border-white/10 bg-black/20 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="font-semibold text-white">{competitor.name}</h3>
-                  <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/55">{competitor.threatLevel}</span>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-white/55">{competitor.positioning}</p>
-                <p className="mt-3 text-sm leading-6 text-white/55"><span className="text-white/80">Strength:</span> {competitor.strengths}</p>
-                <p className="mt-2 text-sm leading-6 text-white/55"><span className="text-white/80">Weakness:</span> {competitor.weakness}</p>
-              </div>
-            ))}
+        <Panel title="Competitor Breakdown" icon={ExternalLink}>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px] text-left text-sm">
+              <thead className="border-b border-line text-xs uppercase tracking-[0.14em] text-muted">
+                <tr>
+                  <th className="py-3 pr-4 font-medium">Company</th>
+                  <th className="px-4 py-3 font-medium">Positioning</th>
+                  <th className="px-4 py-3 font-medium">Strength</th>
+                  <th className="px-4 py-3 font-medium">Weakness</th>
+                  <th className="py-3 pl-4 font-medium">Threat</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.competitors.map((competitor) => (
+                  <tr key={competitor.name} className="border-b border-line/70 align-top">
+                    <td className="py-4 pr-4 font-medium text-white">{competitor.name}</td>
+                    <td className="px-4 py-4 leading-6 text-muted">{competitor.positioning}</td>
+                    <td className="px-4 py-4 leading-6 text-muted">{competitor.strengths}</td>
+                    <td className="px-4 py-4 leading-6 text-muted">{competitor.weakness}</td>
+                    <td className="py-4 pl-4"><ThreatPill level={competitor.threatLevel} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Panel>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-5 xl:grid-cols-2">
           <Panel title="Timing" icon={CheckCircle2}>
             <Info label="Why now" value={report.timing.whyNow} />
             <BulletList title="Tailwinds" items={report.timing.tailwinds} />
@@ -123,24 +147,24 @@ export default function Report() {
           <Panel title="Risk Register" icon={TriangleAlert}>
             <div className="space-y-3">
               {report.risks.map((risk) => (
-                <div key={risk.risk} className="rounded-lg border border-white/10 bg-black/20 p-4">
+                <div key={risk.risk} className="rounded-xl border border-line bg-raised p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-semibold text-white">{risk.risk}</h3>
-                    <span className="rounded-full bg-rose-300/10 px-2 py-1 text-xs text-rose-100">{risk.severity}</span>
+                    <h3 className="font-medium text-white">{risk.risk}</h3>
+                    <ThreatPill level={risk.severity} />
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-white/55">{risk.mitigation}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">{risk.mitigation}</p>
                 </div>
               ))}
             </div>
           </Panel>
         </div>
 
-        <Panel title="Recommended Next Steps" icon={CheckCircle2} className="mt-6">
+        <Panel title="Recommended Next Steps" icon={CheckCircle2}>
           <div className="grid gap-3 md:grid-cols-2">
             {report.nextSteps.map((step, index) => (
-              <div key={step} className="flex gap-3 rounded-lg border border-white/10 bg-black/20 p-4">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-cyan/10 text-sm font-semibold text-cyan">{index + 1}</span>
-                <p className="text-sm leading-6 text-white/60">{step}</p>
+              <div key={step} className="flex gap-3 rounded-xl border border-line bg-raised p-4">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded border border-teal/30 bg-teal/10 font-mono text-xs text-teal">{index + 1}</span>
+                <p className="text-sm leading-6 text-muted">{step}</p>
               </div>
             ))}
           </div>
@@ -150,12 +174,40 @@ export default function Report() {
   );
 }
 
+function ScoreTable({ scores }) {
+  const rows = [
+    ['Market', scores.market],
+    ['Timing', scores.timing],
+    ['Defensibility', scores.defensibility],
+    ['Feasibility', scores.feasibility],
+    ['Risk', scores.risk],
+    ['Founder fit', scores.founderFit],
+    ['Overall', scores.overall]
+  ];
+
+  return (
+    <Card>
+      <div className="border-b border-line px-5 py-4">
+        <h2 className="font-semibold text-white">Scorecard</h2>
+      </div>
+      <div className="grid divide-y divide-line md:grid-cols-7 md:divide-x md:divide-y-0">
+        {rows.map(([label, value]) => (
+          <div key={label} className="px-5 py-4">
+            <div className="text-xs uppercase tracking-[0.14em] text-muted">{label}</div>
+            <div className="mt-2 font-mono text-2xl text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function Panel({ title, icon: Icon, className = '', children }) {
   return (
-    <motion.section initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className={`rounded-lg border border-white/10 bg-white/[0.055] p-5 backdrop-blur-xl ${className}`}>
-      <div className="mb-5 flex items-center gap-2">
-        <Icon className="h-5 w-5 text-cyan" />
-        <h2 className="text-lg font-semibold text-white">{title}</h2>
+    <motion.section initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className={`rounded-xl border border-line bg-panel p-5 surface-shadow ${className}`}>
+      <div className="mb-5 flex items-center gap-2 border-b border-line pb-4">
+        <Icon className="h-5 w-5 text-teal" />
+        <h2 className="font-semibold text-white">{title}</h2>
       </div>
       {children}
     </motion.section>
@@ -164,25 +216,35 @@ function Panel({ title, icon: Icon, className = '', children }) {
 
 function Info({ label, value }) {
   return (
-    <div className="border-t border-white/10 py-4 first:border-t-0 first:pt-0">
-      <div className="text-xs uppercase tracking-[0.2em] text-white/35">{label}</div>
-      <p className="mt-2 text-sm leading-6 text-white/62">{value}</p>
+    <div className="border-t border-line py-4 first:border-t-0 first:pt-0">
+      <div className="text-xs uppercase tracking-[0.14em] text-muted">{label}</div>
+      <p className="mt-2 text-sm leading-6 text-muted">{value}</p>
     </div>
   );
 }
 
 function BulletList({ title, items = [] }) {
   return (
-    <div className="border-t border-white/10 py-4">
-      <div className="text-xs uppercase tracking-[0.2em] text-white/35">{title}</div>
+    <div className="border-t border-line py-4">
+      <div className="text-xs uppercase tracking-[0.14em] text-muted">{title}</div>
       <div className="mt-3 space-y-2">
         {items.map((item) => (
-          <div key={item} className="flex gap-2 text-sm leading-6 text-white/60">
-            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan" />
+          <div key={item} className="flex gap-2 text-sm leading-6 text-muted">
+            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal" />
             {item}
           </div>
         ))}
       </div>
     </div>
   );
+}
+
+function ThreatPill({ level = 'Medium' }) {
+  const normalized = String(level).toLowerCase();
+  const style = normalized.includes('high')
+    ? 'border-danger/30 bg-danger/10 text-red-100'
+    : normalized.includes('low')
+      ? 'border-green/30 bg-green/10 text-green'
+      : 'border-amber/30 bg-amber/10 text-amber';
+  return <span className={`rounded border px-2 py-1 text-xs ${style}`}>{level}</span>;
 }

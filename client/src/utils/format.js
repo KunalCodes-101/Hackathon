@@ -8,7 +8,7 @@ export function formatTime(value) {
 }
 
 export function verdictTone(label) {
-  if (label === 'GO') return 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200';
-  if (label === 'NO-GO') return 'border-rose-300/30 bg-rose-300/10 text-rose-200';
-  return 'border-amber-300/30 bg-amber-300/10 text-amber-100';
+  if (label === 'GO') return 'border-green/30 bg-green/10 text-green';
+  if (label === 'NO-GO') return 'border-danger/30 bg-danger/10 text-red-100';
+  return 'border-amber/30 bg-amber/10 text-amber';
 }

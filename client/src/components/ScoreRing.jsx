@@ -3,19 +3,19 @@ export default function ScoreRing({ score = 0, label = 'Score' }) {
   return (
     <div className="flex items-center gap-5">
       <div
-        className="grid h-32 w-32 place-items-center rounded-full"
-        style={{ background: `conic-gradient(#22D3EE ${angle}deg, rgba(255,255,255,0.08) 0deg)` }}
+        className="grid h-28 w-28 place-items-center rounded-full"
+        style={{ background: `conic-gradient(#2DD4BF ${angle}deg, rgba(154,167,184,0.14) 0deg)` }}
       >
-        <div className="grid h-24 w-24 place-items-center rounded-full bg-ink">
+        <div className="grid h-20 w-20 place-items-center rounded-full border border-line bg-ink">
           <div className="text-center">
-            <div className="text-3xl font-bold text-white">{score}</div>
-            <div className="text-xs text-white/45">/100</div>
+            <div className="font-mono text-2xl font-semibold text-white">{score}</div>
+            <div className="text-[11px] text-muted">/100</div>
           </div>
         </div>
       </div>
       <div>
-        <p className="text-sm uppercase tracking-[0.22em] text-cyan">{label}</p>
-        <h2 className="mt-2 text-3xl font-bold text-white">Investor readiness</h2>
+        <p className="text-xs uppercase tracking-[0.18em] text-teal">{label}</p>
+        <h2 className="mt-2 text-2xl font-semibold text-white">Investor readiness</h2>
       </div>
     </div>
   );

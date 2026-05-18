@@ -7,7 +7,8 @@ import { startAnalysisRun } from '../services/analysisRunner.js';
 const router = Router();
 
 const createAnalysisSchema = z.object({
-  idea: z.string().trim().min(12, 'Describe the idea in at least 12 characters').max(2500)
+  idea: z.string().trim().min(12, 'Describe the idea in at least 12 characters').max(2500),
+  region: z.string().trim().min(2, 'Enter a valid region or locality')
 });
 
 export function createAnalysisRouter(io) {
@@ -16,6 +17,7 @@ export function createAnalysisRouter(io) {
       const body = createAnalysisSchema.parse(req.body);
       const analysis = await Analysis.create({
         idea: body.idea,
+        region: body.region,
         status: 'queued',
         agents: createInitialAgents()
       });

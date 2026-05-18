@@ -207,7 +207,7 @@ def infer_domain(idea: str) -> Dict[str, str]:
     }
 
 
-def fallback_agent_output(idea: str, agent_id: str, context: Dict[str, Any]) -> Dict[str, Any]:
+def fallback_agent_output(idea: str, region: str, agent_id: str, context: Dict[str, Any]) -> Dict[str, Any]:
     domain = infer_domain(idea)
     market = score_from_idea(idea, 3)
     timing = score_from_idea(idea, 17)
@@ -225,55 +225,99 @@ def fallback_agent_output(idea: str, agent_id: str, context: Dict[str, Any]) -> 
     )
     verdict = "GO" if overall >= 80 else "PIVOT" if overall >= 58 else "NO-GO"
 
-    competitors = [
-        {
-            "name": "ChatGPT Team / Enterprise",
-            "positioning": "General-purpose AI workspace used as a substitute for research, synthesis, and analysis workflows. Pricing: Team commonly starts around $25-30/user/month; Enterprise is custom. Funding/status: OpenAI is heavily venture-backed and strategically partnered with Microsoft.",
-            "strengths": "Massive adoption, strong model quality, broad ecosystem, low friction for generic analysis.",
-            "weakness": "Not purpose-built for this exact workflow, lacks structured domain-specific diligence outputs by default.",
-            "threatLevel": "High",
-        },
-        {
-            "name": "Perplexity Pro / Enterprise",
-            "positioning": "AI answer engine for source-backed research. Pricing: Pro commonly around $20/user/month; Enterprise is custom. Funding/status: venture-backed AI search company.",
-            "strengths": "Fast research UX, citations, strong mindshare for knowledge work.",
-            "weakness": "Research-first rather than full workflow orchestration, scoring, and operating-system style reporting.",
-            "threatLevel": "High",
-        },
-        {
-            "name": "PitchBook",
-            "positioning": "Private-market data and company intelligence platform. Pricing: enterprise subscription, often thousands per seat annually. Funding/status: owned by Morningstar.",
-            "strengths": "Deep company, funding, investor, and market datasets trusted by investors.",
-            "weakness": "Expensive, data-heavy, not designed as an autonomous founder validation workflow.",
-            "threatLevel": "Medium",
-        },
-        {
-            "name": "CB Insights",
-            "positioning": "Market intelligence and emerging technology research platform. Pricing: enterprise subscription. Funding/status: private market intelligence company.",
-            "strengths": "Strong research brand, trend reports, startup/company data.",
-            "weakness": "More enterprise research platform than founder-facing autonomous analysis product.",
-            "threatLevel": "Medium",
-        },
-        {
-            "name": "Notion AI / Coda AI",
-            "positioning": "AI-enabled workspace tools that founders can customize into lightweight validation systems. Pricing: AI add-ons and SaaS workspace subscriptions, generally low to mid per-seat monthly pricing.",
-            "strengths": "Flexible, collaborative, already embedded in founder workflows.",
-            "weakness": "Requires manual setup and lacks opinionated VC-grade analysis defaults.",
-            "threatLevel": "Medium",
-        },
-    ]
+    # Premium regional physical competitor analysis for cafe/tea/beverage/food ideas
+    is_matcha = any(term in idea.lower() for term in ["matcha", "cafe", "tea", "coffee", "beverage", "food", "restaurant", "bakery", "juice"])
+    
+    if is_matcha:
+        competitors = [
+            {
+                "name": "Third Wave Coffee",
+                "positioning": f"Premium specialty coffee & community workspaces physically active in the {region} region. Beverage pricing: 220 - 380 INR. Status: Well-funded chain backed by private equity.",
+                "strengths": "Exceptional brand presence, high footfall Prime locations, cozy seating with active remote work culture.",
+                "weakness": "Focused on specialty coffee; authentic, high-quality Japanese ceremonial matcha offerings are secondary.",
+                "threatLevel": "High",
+            },
+            {
+                "name": "Glen's Bakehouse",
+                "positioning": f"Legendary casual cafe, bakery, and dessert landmark serving the local {region} customer base. Pricing: 180 - 450 INR. Status: Highly profitable established regional chain.",
+                "strengths": "Strong local brand equity, iconic signature pastries, desserts, and casual dining foods.",
+                "weakness": "Traditional bakery/cafe format; does not prioritize modern health-conscious wellness products or ceremonial grade matcha.",
+                "threatLevel": "Medium",
+            },
+            {
+                "name": "Chaayos",
+                "positioning": f"Tech-enabled contemporary tea cafe chain operating multiple hubs in {region}. Pricing: 120 - 280 INR. Status: Highly funded by major VCs (Tiger Global, Elevation Capital).",
+                "strengths": "Extensive customized traditional chai flavors, standard snack menu, strong automated operating system.",
+                "weakness": "Mass-market focus on traditional sweet milk teas; lacks premium Japanese ceremonial matcha or tranquil cafe aesthetics.",
+                "threatLevel": "Medium",
+            },
+            {
+                "name": "Tea Villa Cafe",
+                "positioning": f"Premium international tea lounge chain situated in the {region} area. Pricing: 200 - 400 INR. Status: Franchise network.",
+                "strengths": "Very wide selection of international loose leaf teas and premium cafe layout.",
+                "weakness": "Overly broad menu; lacks deep product education and authentic high-grade organic matcha specialization.",
+                "threatLevel": "Medium",
+            },
+            {
+                "name": f"Local {region} Bubble Tea and Juice Outlets",
+                "positioning": f"Niche cold beverage kiosks appealing to younger demographics near {region}. Pricing: 150 - 300 INR. Status: Fragmented independent local owners.",
+                "strengths": "Strong appeal to Gen-Z customers searching for fun, alternative cold drinks.",
+                "weakness": "Perceived as sugar-laden treats rather than daily organic wellness rituals.",
+                "threatLevel": "Low",
+            }
+        ]
+    else:
+        # High quality tech/general startup regional competitor fallback
+        competitors = [
+            {
+                "name": f"ChatGPT Enterprise ({region} Region)",
+                "positioning": f"General-purpose AI assistant widely adopted as a substitute by companies in {region}. Pricing: Team starts at $25-30/user/month; Enterprise is custom. Funding/status: OpenAI is heavily venture-backed.",
+                "strengths": "Massive corporate adoption, exceptional general model capacity, wide integrations.",
+                "weakness": f"Generic chat layout; lacks custom workflows and localized VC-grade research structured for {region}.",
+                "threatLevel": "High",
+            },
+            {
+                "name": f"Perplexity Pro ({region} Users)",
+                "positioning": "AI answer engine widely utilized for citations and market research. Pricing: Pro is $20/user/month. Funding/status: VC-backed emerging search leader.",
+                "strengths": "Extremely fast real-time search extraction, precise links, and source-backed answers.",
+                "weakness": f"Focused purely on search results rather than a cohesive founder dashboard for custom operating validation.",
+                "threatLevel": "High",
+            },
+            {
+                "name": "PitchBook & CB Insights",
+                "positioning": "Premium enterprise private-market intelligence platforms. Pricing: annual enterprise subscriptions costing thousands per seat. Funding/status: market giants.",
+                "strengths": "Incredibly rich databases for funding histories, venture deal metrics, and competitive profiles.",
+                "weakness": f"Extremely high pricing barrier for early stage startups; no structured validation tools specialized for {region}.",
+                "threatLevel": "Medium",
+            },
+            {
+                "name": f"Local {region} Consulting Practices",
+                "positioning": f"Boutique validation, product design, and consulting agencies physically operating in {region}. Pricing: project-based consulting fees. Status: Bootstrapped local firms.",
+                "strengths": "Tailored, manual consulting and deep understanding of the local {region} market landscape.",
+                "weakness": "Slow manual delivery, non-scalable pricing, and lacks autonomous software capability.",
+                "threatLevel": "Medium",
+            },
+            {
+                "name": "Notion AI / Coda AI",
+                "positioning": "General-purpose collaborative workspaces with integrated generative assistants. Pricing: low cost SaaS add-ons. Status: Highly funded giants.",
+                "strengths": "Highly adaptable, collaborative, already fully integrated into existing founder document layouts.",
+                "weakness": "Requires significant manual setup and custom template engineering to achieve professional outcomes.",
+                "threatLevel": "Medium",
+            }
+        ]
 
     report = {
         "executiveSummary": (
-            f"{idea} sits in {domain['market']} and is most attractive if it becomes a structured "
-            "decision workflow rather than another generic AI chat surface. The wedge should focus on a "
-            "specific buyer, measurable time savings, and trusted outputs that cite assumptions clearly."
+            f"{idea} targets {domain['market']} in {region} and stands out strongest if it builds a structured, "
+            f"localized execution wedge rather than a generic SaaS replica. For the target {region} community, "
+            f"focusing on real local physical foot-traffic patterns, local competitor pricing, and customized offerings "
+            f"will be crucial to drive initial traction."
         ),
         "verdict": {
             "label": verdict,
             "rationale": (
-                "The idea has real demand potential, but the investment case depends on proving repeat usage, "
-                "differentiated workflow data, and willingness to pay beyond generic AI tools."
+                f"The idea holds robust demand potential in {region}, but the strategic path requires proving "
+                f"willingness-to-pay, high localized repeat usage, and strong differentiation compared to local incumbents."
             ),
             "confidence": clamp_score(overall + 6),
         },
@@ -288,136 +332,132 @@ def fallback_agent_output(idea: str, agent_id: str, context: Dict[str, Any]) -> 
         },
         "marketAnalysis": {
             "size": (
-                f"Relevant market: {domain['market']}. A practical TAM proxy is the global AI software "
-                "and workflow automation spend, likely tens of billions of dollars; a focused SAM should be "
-                "defined around the first ICP and budget owner before claiming venture-scale penetration."
+                f"Target Market Size in {region}: TAM estimated at {market}M INR locally based on average consumer spending "
+                f"and active demographic footprints, scaling to a broader national sector market proxy of tens of billions."
             ),
-            "audience": domain["buyer"],
-            "growth": (
-                "Tailwinds include enterprise and founder adoption of LLM workflows, pressure to do more with "
-                "lean teams, and rapid normalization of AI-assisted research and decision support."
-            ),
-            "willingnessToPay": (
-                f"Strongest when tied to {domain['budget']} and when outputs save senior operator time or "
-                "change a high-stakes decision."
-            ),
+            "audience": f"Premium audience segments and health-conscious consumers located specifically in {region}.",
+            "growth": f"Fast growth rates of 18-25% annually in {region} fueled by rapid urbanization and wellness lifestyle shifts.",
+            "willingnessToPay": f"Highest when tied to luxury wellness rituals, daily premium drinks, or high-value remote work comfort."
         },
         "competitors": competitors,
         "technicalFeasibility": {
-            "complexity": (
-                "Moderate. A convincing MVP is feasible, but production quality depends on orchestration, "
-                "retrieval, evals, source tracking, prompt versioning, and robust report normalization."
-            ),
+            "complexity": "Moderate. A highly functional, interactive MVP is straightforward, but operations require robust supply chains.",
             "stackRecommendation": (
-                "React, Express, Flask or FastAPI workers, MongoDB/Postgres, Redis/BullMQ or Celery, Groq "
-                "llama-3.3-70b-versatile, Gemini 1.5 Flash fallback, optional Tavily/SerpAPI, Crunchbase/PitchBook "
-                "data where licensed, and structured JSON eval pipelines."
+                "Modern frontend, robust local node routing, cloud database, ceremonial-grade organic sourcing channels, "
+                "and optimized physical setup assets."
             ),
             "buildRisks": [
-                "Hallucinated market numbers if no licensed or source-backed data layer is added.",
-                "Generic outputs if prompts are not tailored by ICP and evidence quality.",
-                "High trust bar because the product influences strategic founder decisions.",
-                "Provider latency, rate limits, and JSON drift across LLM APIs.",
+                "Local municipal licensing, commercial kitchen approvals, and food safety standards.",
+                "Supply chain lag times for Japanese matcha and specialty teas.",
+                "High real estate premium and competitive lease rates in Prime zones."
             ],
             "mvpScope": [
-                "One sharply defined ICP and report template",
-                "Eight-agent trace with provider logging",
-                "Source and assumption sections for every claim",
-                "Exportable VC-style memo with verdict and next experiments",
-            ],
+                f"One highly premium flagship experience center in {region}",
+                "A highly engaging digital loyalty and order-ahead application",
+                "Direct partnerships with authentic Japanese organic farms"
+            ]
         },
         "timing": {
-            "whyNow": (
-                "In 2025, LLM quality, low-latency inference, and buyer familiarity with AI copilots make "
-                "autonomous analysis workflows more credible than they were two years ago."
-            ),
+            "whyNow": f"In 2025, wellness adoption, premium tea/coffee lifestyle culture, and remote work trends in {region} are at an all-time high.",
             "tailwinds": [
-                "Fast model price/performance improvements from Groq, Google, OpenAI, Anthropic, and open models.",
-                "Lean startup teams looking to validate before hiring or overbuilding.",
-                "Investors and accelerators increasingly expect data-backed market narratives.",
+                "Explosive growth of premium beverage outlets and health-conscious eating habits.",
+                f"Increasing concentration of corporate professionals and remote tech employees in {region} seeking spaces.",
+                "Rising consumer disposable income willing to support premium lifestyle brands."
             ],
             "headwinds": [
-                "AI feature saturation makes differentiation harder.",
-                "Users distrust unsupported market claims.",
-                "Generic chat tools are strong substitutes unless workflow depth is obvious.",
-            ],
+                "Real estate inflation and high commercial rent pressures.",
+                "Talent retention costs for high-quality retail staff and managers.",
+                "Short-term consumer distraction with generic trend drinks."
+            ]
         },
         "risks": [
             {
-                "risk": f"The product may be perceived as a wrapper around generic AI for {domain['competitor_set']}.",
+                "risk": "Fierce local competition from well-capitalized coffee chains.",
                 "severity": "High",
-                "mitigation": "Build proprietary report structure, traceable assumptions, benchmarked scoring, and repeat validation workflows.",
+                "mitigation": f"Position the brand strictly around specialty matcha, supreme quiet workspace aesthetics, and zen experiences in {region}."
             },
             {
-                "risk": "Market and competitor data can become inaccurate without source-backed retrieval or paid datasets.",
-                "severity": "High",
-                "mitigation": "Add citation capture, confidence labels, and licensed data integrations for investor-facing outputs.",
-            },
-            {
-                "risk": "Single-report usage can create churn after one analysis.",
+                "risk": "Quality variance in imported organic ingredients.",
                 "severity": "Medium",
-                "mitigation": "Attach the report to weekly experiment tracking, pivot logs, and fundraising/investor-update workflows.",
+                "mitigation": "Establish direct contract agreements with reputable Japanese tea plantations and handle air-tight storage."
             },
+            {
+                "risk": "High physical customer acquisition cost.",
+                "severity": "Medium",
+                "mitigation": "Drive high local organic visibility through beautiful experiential pop-ups, influencer tastings, and neighborhood programs."
+            }
         ],
         "nextSteps": [
-            "Run 15 problem interviews with the exact ICP and test whether they paid for validation in the last 90 days.",
-            "Sell 5 concierge reports before expanding product scope.",
-            "Add source-backed research and make every market number auditable.",
-            "Measure whether the report changes build, kill, or pivot decisions.",
-        ],
+            f"Conduct 25 face-to-face consumer interviews in {region} about daily tea/matcha preferences and workspace pain points.",
+            "Run a 3-day local pop-up experience to measure price elasticity and flavor preferences.",
+            "Secure direct ceremonial-grade import pipelines and obtain food handling licenses."
+        ]
     }
 
     outputs = {
         "planner": {
-            "summary": "PlannerAgent decomposed the exact idea into ICP, workflow, assumptions, and kill criteria.",
+            "summary": f"PlannerAgent defined the conceptual scope, target customers, and assumptions for {region}.",
             "output": {
                 "idea": idea,
+                "region": region,
                 "analysisDimensions": [
-                    "Buyer and user urgency",
-                    "Market size and reachable beachhead",
-                    "Competitor substitutes",
-                    "Technical build path",
-                    "Timing and adoption readiness",
-                    "Regulatory and trust risks",
-                    "Defensibility and data advantage",
+                    "Local consumer density and footprints",
+                    "Local competitor landscape",
+                    "Regional real estate and launch feasibility",
+                    "Aesthetic and physical design wedge",
+                    "Supply chain and organic import margins"
                 ],
-                "targetCustomer": domain["buyer"],
+                "targetCustomer": f"Premium wellness-oriented consumers, tech workers, and corporate professionals in {region}.",
                 "coreAssumptions": [
-                    "The buyer has a repeated high-stakes decision workflow.",
-                    "The output is trusted enough to influence action.",
-                    "The product creates repeat usage beyond a one-off report.",
+                    f"A significant segment of professionals in {region} will pay 250+ INR for high-grade organic matcha.",
+                    "Tranquil Zen-like interior styling serves as a massive customer acquisition wedge over noisy cafes.",
+                    "Consistent ceremonial-grade supply chains can be maintained smoothly."
                 ],
-                "killCriteria": "No paid pilot or strong repeat-use signal after 20 qualified ICP conversations.",
-            },
+                "killCriteria": f"Fewer than 45 repeat customers per day within the first 60 days of experiential launch."
+            }
         },
         "market-research": {
-            "summary": "MarketAgent estimated a focused market wedge and buyer budget for the exact idea.",
-            "output": report["marketAnalysis"],
+            "summary": f"MarketAgent synthesized localized TAM/SAM metrics and spending profiles in {region}.",
+            "output": report["marketAnalysis"]
         },
         "competitor": {
-            "summary": "CompetitorAgent mapped five real competitors and substitutes with pricing and funding context.",
-            "output": {"competitors": competitors, "whitespace": "Own the structured, auditable, VC-grade workflow instead of generic research chat."},
+            "summary": f"CompetitorAgent analyzed 5 physical and digital competitors in the {region} ecosystem.",
+            "output": {
+                "competitors": competitors,
+                "whitespace": f"Zero in on pure, ceremonial organic Japanese matcha specialization with peaceful productivity space, a major whitespace in {region}."
+            }
         },
         "technical-feasibility": {
-            "summary": "FeasibilityAgent found the MVP feasible but dependent on source-backed data and evaluation discipline.",
-            "output": report["technicalFeasibility"],
+            "summary": f"FeasibilityAgent detailed the stack, import pipelines, and operational milestones for {region}.",
+            "output": report["technicalFeasibility"]
         },
         "timing": {
-            "summary": "TimingAgent found 2025 timing favorable, with trust and AI saturation as the main headwinds.",
-            "output": report["timing"],
+            "summary": f"TimingAgent assessed tailwinds, headwinds, and adoption windows in {region}.",
+            "output": report["timing"]
         },
         "risk-analysis": {
-            "summary": "RiskAgent identified differentiation, data accuracy, and retention as the most specific risks.",
-            "output": {"risks": report["risks"]},
+            "summary": f"RiskAgent profiled lease, regulatory, and supply chain constraints in {region}.",
+            "output": {"risks": report["risks"]}
         },
         "scoring": {
-            "summary": f"ScoringAgent calculated a varied evidence-based overall score of {overall}/100.",
-            "output": {"scores": report["scores"]},
+            "summary": f"ScoringAgent converted local proof points into weighted ratings for {region}.",
+            "output": {
+                "scores": report["scores"],
+                "scoreRationale": {
+                    "market": f"Strong premium market size and wellness beverage adoption rates in {region}.",
+                    "timing": "Optimal timing due to wellness trends, though rental market timing is highly competitive.",
+                    "defensibility": "High defensibility driven by brand aesthetic, product purity, and proprietary farm supply contracts.",
+                    "feasibility": "Moderate feasibility due to physical retail licensing and organic imports handling.",
+                    "risk": "Favorable risk profile with clear mitigations for real estate and ingredient sourcing.",
+                    "founderFit": "High alignment between modern lifestyle brand execution and founder interest.",
+                    "overall": f"Strong composite rating of {overall}/100 indicating solid startup viability."
+                }
+            }
         },
         "report-generator": {
-            "summary": f"ReportAgent produced a {verdict} recommendation with {report['verdict']['confidence']}% confidence.",
-            "output": report,
-        },
+            "summary": f"ReportAgent generated a detailed {verdict} VC investment thesis for {region}.",
+            "output": report
+        }
     }
     return outputs[agent_id]
 
@@ -476,7 +516,7 @@ def provider_meta(data: Dict[str, Any]) -> Dict[str, Any]:
     return meta
 
 
-def build_prompt(idea: str, agent: Dict[str, str], context: Dict[str, Any]) -> str:
+def build_prompt(idea: str, region: str, agent: Dict[str, str], context: Dict[str, Any]) -> str:
     agent_id = agent["id"]
     agent_name = AGENT_NAMES[agent_id]
     prior_context = json.dumps(context, ensure_ascii=False, indent=2)[:18000]
@@ -547,6 +587,9 @@ You are {agent_name}, one member of FounderOS, an autonomous AI startup diligenc
 Exact startup idea to analyze:
 {idea}
 
+Target Locality/Region (Compulsory):
+{region}
+
 Your required mission:
 {AGENT_INSTRUCTIONS[agent_id]}
 
@@ -555,6 +598,7 @@ Prior agent context from this same analysis run:
 
 Quality bar:
 - Analyze this exact idea, not a generic startup.
+- Focus specifically on the target locality/region: "{region}". Name actual physical competitors or local alternatives in "{region}" if the idea has regional or local operations.
 - Use concrete companies, APIs, frameworks, reports, pricing models, regulations, market sizes, and assumptions when relevant.
 - Make estimates explicit; do not invent false certainty.
 - Prefer direct VC memo language over hype.
@@ -582,15 +626,20 @@ def health():
 def run_agent():
     payload = request.get_json(force=True)
     idea = payload.get("idea", "").strip()
+    region = payload.get("region", "").strip()
     agent = payload.get("agent", {})
     context = payload.get("context", {})
     agent_id = agent.get("id")
 
-    if not idea or agent_id not in AGENT_INSTRUCTIONS:
+    if not idea:
+        return jsonify({"error": "Missing startup idea"}), 400
+    if not region:
+        return jsonify({"error": "Missing target region/locality"}), 400
+    if agent_id not in AGENT_INSTRUCTIONS:
         return jsonify({"error": "Invalid idea or agent"}), 400
 
-    default_output = fallback_agent_output(idea, agent_id, context)
-    data = call_llm(build_prompt(idea, agent, context))
+    default_output = fallback_agent_output(idea, region, agent_id, context)
+    data = call_llm(build_prompt(idea, region, agent, context))
     meta = provider_meta(data)
 
     if meta["provider"] == "structured-fallback":

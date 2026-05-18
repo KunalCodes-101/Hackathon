@@ -76,6 +76,7 @@ export async function startAnalysisRun({ analysisId, io }) {
       const analysis = await Analysis.findById(analysisId);
       const result = await runAgent({
         idea: analysis.idea,
+        region: analysis.region,
         agent,
         context
       });

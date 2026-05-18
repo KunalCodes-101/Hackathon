@@ -10,11 +10,41 @@ html {
   scroll-behavior: smooth;
 }
 
+:root,
+[data-theme='dark'] {
+  --color-bg: #030303;
+  --color-panel: #0d0d0d;
+  --color-raised: #15110f;
+  --color-line: #2b2927;
+  --color-muted: #b6b0aa;
+  --color-text: #fff8f1;
+  --color-accent: #f97316;
+  --color-green: #22c55e;
+  --color-amber: #f59e0b;
+  --color-danger: #ef4444;
+  --shadow-panel: 0 20px 60px rgba(0, 0, 0, 0.22);
+}
+
+[data-theme='light'] {
+  --color-bg: #fbfaf8;
+  --color-panel: #ffffff;
+  --color-raised: #f5efe9;
+  --color-line: #e6ded6;
+  --color-muted: #736b63;
+  --color-text: #17120f;
+  --color-accent: #c2410c;
+  --color-green: #15803d;
+  --color-amber: #b45309;
+  --color-danger: #dc2626;
+  --shadow-panel: 0 18px 50px rgba(15, 23, 42, 0.08);
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  background: #060713;
+  background: var(--color-bg);
   font-family: Inter, system-ui, sans-serif;
+  color: var(--color-text);
 }
 
 button,
@@ -22,8 +52,14 @@ textarea {
   font: inherit;
 }
 
+button,
+a,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
 ::selection {
-  background: rgba(34, 211, 238, 0.35);
+  background: rgba(45, 212, 191, 0.28);
 }
 
 ::-webkit-scrollbar {
@@ -31,10 +67,76 @@ textarea {
 }
 
 ::-webkit-scrollbar-track {
-  background: #060713;
+  background: var(--color-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--color-muted) 32%, transparent);
   border-radius: 999px;
+}
+
+[data-theme='light'] .text-white {
+  color: var(--color-text);
+}
+
+[data-theme='light'] .text-red-100 {
+  color: #991b1b;
+}
+
+.surface-shadow {
+  box-shadow: var(--shadow-panel);
+}
+
+.input-surface {
+  background: var(--color-raised) !important;
+  color: var(--color-text);
+}
+
+.bg-ink {
+  background-color: var(--color-bg) !important;
+}
+
+.bg-panel {
+  background-color: var(--color-panel) !important;
+}
+
+.bg-raised {
+  background-color: var(--color-raised) !important;
+}
+
+.bg-panel\/70,
+.bg-panel\/80,
+.bg-panel\/90 {
+  background-color: color-mix(in srgb, var(--color-panel) 86%, transparent) !important;
+}
+
+.bg-teal {
+  background-color: var(--color-accent) !important;
+}
+
+.bg-teal\/10 {
+  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent) !important;
+}
+
+.border-line {
+  border-color: var(--color-line) !important;
+}
+
+.border-teal,
+.border-teal\/25,
+.border-teal\/30,
+.border-teal\/50 {
+  border-color: color-mix(in srgb, var(--color-accent) 60%, transparent) !important;
+}
+
+.text-muted {
+  color: var(--color-muted) !important;
+}
+
+.text-teal {
+  color: var(--color-accent) !important;
+}
+
+.placeholder\:text-muted\/60::placeholder {
+  color: color-mix(in srgb, var(--color-muted) 60%, transparent) !important;
 }

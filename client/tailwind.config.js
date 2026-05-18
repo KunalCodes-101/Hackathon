@@ -6,16 +6,19 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif']
       },
       colors: {
-        ink: '#060713',
-        panel: '#0D1021',
-        line: 'rgba(255,255,255,0.1)',
-        violet: '#8B5CF6',
-        cyan: '#22D3EE',
-        fuchsia: '#D946EF'
+        ink: 'var(--color-bg)',
+        panel: 'var(--color-panel)',
+        raised: 'var(--color-raised)',
+        line: 'var(--color-line)',
+        muted: 'var(--color-muted)',
+        teal: 'var(--color-accent)',
+        green: 'var(--color-green)',
+        amber: 'var(--color-amber)',
+        danger: 'var(--color-danger)',
+        body: 'var(--color-text)'
       },
       boxShadow: {
-        glow: '0 0 80px rgba(139,92,246,0.35)',
-        cyan: '0 0 60px rgba(34,211,238,0.22)'
+        focus: '0 0 0 1px rgba(45,212,191,0.32)'
       }
     }
   },

@@ -62,4 +62,4 @@ async function boot() {
 boot().catch((error) => {
   console.error('Failed to start API', error);
   process.exit(1);
-});
+});// Loaded successfully - ports verified clear

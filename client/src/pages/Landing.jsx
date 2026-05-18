@@ -1,39 +1,60 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ArrowRight, BrainCircuit, LineChart, Radar, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, CheckCircle2, FileText, Layers3, Loader2, Play, ShieldAlert, SlidersHorizontal } from 'lucide-react';
 import Chrome from '../components/Chrome.jsx';
-import { createAnalysis } from '../api.js';
+import { Card, MetricCard, SegmentedControl, StatusPill } from '../components/ui.jsx';
+import { createAnalysis, listAnalyses } from '../api.js';
+import { formatTime } from '../utils/format.js';
 
 const agents = [
-  'Planner',
-  'Market Research',
-  'Competitor',
-  'Technical Feasibility',
-  'Timing',
-  'Risk Analysis',
-  'Scoring',
-  'Report Generator'
+  ['Planner', 'Frames the idea'],
+  ['Market', 'Checks demand'],
+  ['Competitor', 'Maps alternatives'],
+  ['Technical', 'Tests build path'],
+  ['Timing', 'Reads why now'],
+  ['Risk', 'Finds failure modes'],
+  ['Scoring', 'Grades signal'],
+  ['Report', 'Writes memo']
 ];
 
 const examples = [
   'AI chief of staff for solo founders that turns messy notes into weekly investor updates',
-  'Autonomous outbound research platform for vertical SaaS sales teams',
-  'Compliance copilot for fintech startups shipping faster in regulated markets'
+  'Compliance copilot for fintech startups shipping faster in regulated markets',
+  'Autonomous outbound research platform for vertical SaaS sales teams'
 ];
 
 export default function Landing() {
   const [idea, setIdea] = useState('');
+  const [region, setRegion] = useState('');
   const [loading, setLoading] = useState(false);
+  const [recent, setRecent] = useState([]);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  useEffect(() => {
+    let mounted = true;
+    listAnalyses()
+      .then((items) => {
+        if (mounted) setRecent(items);
+      })
+      .catch(() => {
+        if (mounted) setRecent([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   async function submit(event) {
     event.preventDefault();
+    if (!region.trim()) {
+      setError('Region or locality is compulsory.');
+      return;
+    }
     setError('');
     setLoading(true);
     try {
-      const analysis = await createAnalysis(idea);
+      const analysis = await createAnalysis(idea, region);
       navigate(`/analysis/${analysis._id}`);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -44,132 +65,154 @@ export default function Landing() {
 
   return (
     <Chrome>
-      <section className="mx-auto grid min-h-[calc(100vh-88px)] w-full max-w-7xl items-center gap-10 px-5 pb-14 pt-8 lg:grid-cols-[1.04fr_0.96fr]">
-        <div>
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 rounded-full border border-cyan/20 bg-cyan/10 px-4 py-2 text-sm text-cyan"
-          >
-            <Sparkles className="h-4 w-4" />
-            Real-time autonomous startup diligence
-          </motion.div>
+      <section className="mx-auto flex w-full max-w-7xl flex-col items-center px-5 pb-16 pt-8 text-center">
+        <p className="text-sm font-medium uppercase tracking-[0.12em] text-teal">
+          Validate. Score. Decide.
+        </p>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08 }}
-            className="mt-7 max-w-4xl text-5xl font-extrabold leading-[1.03] tracking-normal text-white sm:text-6xl lg:text-7xl"
-          >
-            Validate your startup idea before you build the wrong company.
-          </motion.h1>
+        <h1 className="mt-5 max-w-5xl text-4xl font-light leading-[1.08] tracking-normal text-white sm:text-5xl lg:text-6xl">
+          Build the startup people actually want.
+        </h1>
 
-          <motion.p
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.16 }}
-            className="mt-6 max-w-2xl text-lg leading-8 text-white/62"
-          >
-            FounderOS runs eight specialist AI agents in sequence and turns raw strategy questions into an investor-grade validation report with scores, risks, competitors, and a decisive verdict.
-          </motion.p>
+        <p className="mt-5 max-w-3xl text-base leading-7 text-muted md:text-lg">
+          FounderOS runs an eight-agent validation flow and turns a rough idea into a clean regional investor-style decision memo.
+        </p>
 
-          <motion.form
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.24 }}
-            onSubmit={submit}
-            className="mt-8 overflow-hidden rounded-lg border border-white/10 bg-white/[0.07] p-2 shadow-glow backdrop-blur-xl"
-          >
-            <textarea
-              value={idea}
-              onChange={(event) => setIdea(event.target.value)}
-              placeholder="Describe the startup idea you want validated..."
-              className="h-36 w-full resize-none rounded-md border border-white/10 bg-black/20 px-5 py-4 text-base leading-7 text-white outline-none placeholder:text-white/35 focus:border-cyan/40"
-            />
-            <div className="flex flex-col gap-3 p-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-white/45">Minimum 12 characters. Best results include customer, product, and why now.</div>
-              <button
-                disabled={loading || idea.trim().length < 12}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-cyan disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white/35"
-              >
-                {loading ? 'Launching agents' : 'Run validation'}
-                <ArrowRight className="h-4 w-4" />
-              </button>
+        <form
+          onSubmit={submit}
+          className="mt-8 w-full max-w-4xl rounded-3xl border border-line bg-panel/90 p-3 text-left surface-shadow backdrop-blur"
+        >
+          <textarea
+            value={idea}
+            onChange={(event) => setIdea(event.target.value)}
+            placeholder="Describe your startup idea..."
+            className="input-surface h-28 w-full resize-none rounded-2xl border border-line px-5 py-4 text-base leading-7 outline-none transition placeholder:text-muted/60 focus:border-teal focus:shadow-focus"
+          />
+
+          <input
+            type="text"
+            value={region}
+            onChange={(event) => setRegion(event.target.value)}
+            placeholder="Target region/locality (e.g. Koramangala, Bangalore) - Compulsory"
+            className="input-surface mt-3 h-14 w-full rounded-2xl border border-line px-5 py-4 text-base outline-none transition placeholder:text-muted/60 focus:border-teal focus:shadow-focus"
+            required
+          />
+
+          <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="text-xs text-muted">
+              <span>{idea.trim().length < 12 ? 'Minimum 12 characters required for idea' : 'Regional validation ready'}</span>
+              <span className="mx-2">•</span>
+              <span>{!region.trim() ? 'Region is required' : 'Region ready'}</span>
             </div>
-          </motion.form>
 
-          {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            {examples.map((sample) => (
-              <button
-                key={sample}
-                type="button"
-                onClick={() => setIdea(sample)}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-left text-xs text-white/55 transition hover:border-cyan/30 hover:text-white"
-              >
-                {sample}
-              </button>
-            ))}
+            <button
+              disabled={loading || idea.trim().length < 12 || !region.trim()}
+              className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-teal px-8 text-base font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-95 disabled:translate-y-0 disabled:cursor-not-allowed disabled:border disabled:border-line disabled:bg-raised disabled:text-muted"
+            >
+              {loading ? 'Starting' : 'Start analysis'}
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+            </button>
           </div>
+          <div className="mt-3 flex items-center justify-between text-xs text-muted">
+            <span>{idea.trim().length}/2500 characters</span>
+          </div>
+          {error && <p className="mt-3 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-red-100">{error}</p>}
+        </form>
+
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          {examples.map((sample) => (
+            <button
+              key={sample}
+              type="button"
+              onClick={() => setIdea(sample)}
+              className="max-w-sm rounded-full border border-line bg-panel/70 px-4 py-2 text-sm text-muted transition hover:border-teal hover:text-white"
+            >
+              {sample}
+            </button>
+          ))}
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.18 }}
-          className="relative"
-        >
-          <div className="relative rounded-lg border border-white/10 bg-panel/70 p-5 shadow-cyan backdrop-blur-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="mt-16 grid w-full max-w-5xl gap-4 sm:grid-cols-3">
+          <MetricCard label="Agents" value="8" icon={Layers3} />
+          <MetricCard label="Recent runs" value={recent.length} icon={FileText} tone="text-green" />
+          <MetricCard label="Selected mode" value="Compulsory" icon={SlidersHorizontal} tone="text-amber" />
+        </div>
+
+        <div className="mt-6 grid w-full max-w-5xl gap-4 lg:grid-cols-[1fr_340px]">
+          <Card className="overflow-hidden text-left">
+            <div className="flex items-center justify-between border-b border-line px-5 py-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-white/35">Agent Team</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Live diligence pipeline</h2>
+                <h2 className="font-semibold text-white">Recent analyses</h2>
+                <p className="mt-1 text-sm text-muted">Saved validation runs</p>
               </div>
-              <div className="grid h-11 w-11 place-items-center rounded-lg bg-cyan/10">
-                <BrainCircuit className="h-5 w-5 text-cyan" />
-              </div>
+              <FileText className="h-5 w-5 text-muted" />
             </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] text-left text-sm">
+                <thead className="border-b border-line text-xs uppercase tracking-[0.12em] text-muted">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Idea</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Score</th>
+                    <th className="px-4 py-3 font-medium">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recent.map((item) => (
+                    <tr key={item._id} className="border-b border-line/70 transition hover:bg-raised/60">
+                      <td className="max-w-[320px] px-5 py-3">
+                        <Link to={item.report ? `/report/${item._id}` : `/analysis/${item._id}`} className="line-clamp-1 text-white hover:text-teal">
+                          {item.idea}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3"><StatusPill status={item.status} /></td>
+                      <td className="px-4 py-3 font-mono text-muted">{item.report?.scores?.overall ?? '--'}</td>
+                      <td className="px-4 py-3 text-muted">{formatTime(item.updatedAt)}</td>
+                    </tr>
+                  ))}
+                  {!recent.length && (
+                    <tr>
+                      <td className="px-5 py-8 text-sm text-muted" colSpan="4">No saved analyses yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
 
-            <div className="mt-5 grid gap-3">
-              {agents.map((agent, index) => (
-                <motion.div
-                  key={agent}
-                  initial={{ opacity: 0, x: 18 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.08 * index }}
-                  className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.045] px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-8 w-8 place-items-center rounded-md bg-white/10 text-xs font-semibold text-cyan">
-                      {index + 1}
-                    </div>
-                    <span className="text-sm font-medium text-white/80">{agent}</span>
+          <Card className="p-5 text-left">
+            <h2 className="font-semibold text-white">Agent flow</h2>
+            <div className="mt-4 grid gap-2">
+              {agents.map(([name, role], index) => (
+                <div key={name} className="flex items-center gap-3 rounded-2xl border border-line bg-raised px-3 py-2">
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-panel font-mono text-xs text-teal">{index + 1}</span>
+                  <div>
+                    <div className="text-sm font-medium text-white">{name}</div>
+                    <div className="text-xs text-muted">{role}</div>
                   </div>
-                  <span className="h-2 w-2 rounded-full bg-cyan shadow-[0_0_18px_rgba(34,211,238,0.85)]" />
-                </motion.div>
-              ))}
-            </div>
-
-            <div className="mt-5 grid grid-cols-3 gap-3">
-              {[
-                [LineChart, 'Market'],
-                [Radar, 'Scores'],
-                [ShieldCheck, 'Risks']
-              ].map(([Icon, label]) => (
-                <div key={label} className="rounded-lg border border-white/10 bg-black/20 p-4 text-center">
-                  <Icon className="mx-auto h-5 w-5 text-violet-200" />
-                  <div className="mt-2 text-xs text-white/50">{label}</div>
                 </div>
               ))}
             </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-sm text-white/45">
-            <Zap className="h-4 w-4 text-cyan" />
-            Progress streams while agents work.
-          </div>
-        </motion.div>
+            <div className="mt-5 space-y-3 text-sm">
+              <Note icon={CheckCircle2} tone="text-green" title="Live progress" body="Socket events update every agent." />
+              <Note icon={Play} tone="text-teal" title="Provider fallback" body="Groq, Gemini, then local fallback." />
+              <Note icon={ShieldAlert} tone="text-amber" title="Research note" body="Live web tools can be added next." />
+            </div>
+          </Card>
+        </div>
       </section>
     </Chrome>
+  );
+}
+
+function Note({ icon: Icon, tone, title, body }) {
+  return (
+    <div className="flex gap-3">
+      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone}`} />
+      <div>
+        <div className="font-medium text-white">{title}</div>
+        <p className="mt-1 leading-5 text-muted">{body}</p>
+      </div>
+    </div>
   );
 }
