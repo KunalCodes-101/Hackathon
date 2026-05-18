@@ -7,7 +7,7 @@ class WebSearch:
     def search(self, query, max_results=4):
         try:
             print(f"[SEARCH] {query}")
-            with DDGS() as ddgs:
+            with DDGS(timeout=4, verify=False) as ddgs:
                 results = list(ddgs.text(query, max_results=max_results))
             formatted = [
                 {

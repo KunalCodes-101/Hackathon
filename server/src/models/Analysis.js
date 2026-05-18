@@ -55,9 +55,18 @@ const reportSchema = new mongoose.Schema(
         positioning: String,
         strengths: String,
         weakness: String,
-        threatLevel: String
+        threatLevel: String,
+        source: String,
+        sourceUrl: String,
+        rating: Number,
+        reviewCount: Number,
+        reviews: [mongoose.Schema.Types.Mixed],
+        reviewSummary: String,
+        reviewSummaryUrl: String,
+        generativeSummary: String
       }
     ],
+    reviewGaps: [mongoose.Schema.Types.Mixed],
     technicalFeasibility: {
       complexity: String,
       stackRecommendation: String,

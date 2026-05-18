@@ -1,11 +1,13 @@
 import json
 import os
+import re
 from datetime import UTC, datetime
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import requests
 
 load_dotenv()
 
@@ -19,6 +21,11 @@ try:
 except ImportError:
     genai = None
 
+try:
+    from search import WebSearch
+except Exception:
+    WebSearch = None
+
 app = Flask(__name__)
 CORS(app)
 
@@ -26,6 +33,10 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"
 GEMINI_MODEL = "gemini-1.5-flash"
+OSM_USER_AGENT = os.getenv("OSM_USER_AGENT", "FounderOS/1.0 local-business-research")
+OVERPASS_URL = os.getenv("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
+FOURSQUARE_API_KEY = os.getenv("FOURSQUARE_API_KEY", "")
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
 if genai and GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -207,7 +218,693 @@ def infer_domain(idea: str) -> Dict[str, str]:
     }
 
 
-def fallback_agent_output(idea: str, region: str, agent_id: str, context: Dict[str, Any]) -> Dict[str, Any]:
+def clean_company_name(title: str) -> str:
+    name = re.split(r"\s[-|:]\s| - | \| ", title or "")[0].strip()
+    name = re.sub(r"\b(best|top|near me|reviews|menu|photos)\b\s*\d*\s*", "", name, flags=re.IGNORECASE).strip()
+    return name[:80] or "Local competitor"
+
+
+def is_local_physical_idea(idea: str) -> bool:
+    terms = [
+        "bakery", "bar", "beauty", "beverage", "boutique", "breakfast", "bubble tea", "cafe",
+        "clinic", "coffee", "coworking", "dental", "dessert", "diner", "fast food", "fitness",
+        "food", "gym", "hotel", "juice", "matcha", "medical", "physical", "pizza", "quick service",
+        "restaurant", "retail", "salon", "sandwich", "spa", "takeaway", "tea", "wellness", "yoga",
+        "burger", "burgers",
+    ]
+    lower = idea.lower()
+    return any(term in lower for term in terms)
+
+
+def geocode_region(region: str) -> Dict[str, Any] | None:
+    try:
+        response = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": region, "format": "json", "limit": 1, "addressdetails": 1},
+            headers={"User-Agent": OSM_USER_AGENT},
+            timeout=10,
+        )
+        response.raise_for_status()
+        results = response.json()
+        if not results:
+            return None
+        item = results[0]
+        return {
+            "lat": float(item["lat"]),
+            "lon": float(item["lon"]),
+            "displayName": item.get("display_name", region),
+        }
+    except Exception as exc:
+        app.logger.warning("Region geocoding failed for %s: %s", region, exc)
+        return None
+
+
+def osm_category_filters(idea: str) -> List[Tuple[str, str]]:
+    lower = idea.lower()
+    filters: List[Tuple[str, str]] = []
+
+    if any(term in lower for term in ["matcha", "tea", "coffee", "cafe", "beverage", "dessert"]):
+        filters.extend([("amenity", "cafe"), ("amenity", "restaurant"), ("shop", "tea"), ("shop", "coffee")])
+    if any(term in lower for term in ["restaurant", "food", "lunch", "dinner", "breakfast"]):
+        filters.extend([("amenity", "restaurant"), ("amenity", "fast_food"), ("amenity", "food_court")])
+    if any(term in lower for term in ["burger", "burgers", "fast food", "quick service", "takeaway", "sandwich", "pizza"]):
+        filters.extend([("amenity", "fast_food"), ("amenity", "restaurant"), ("cuisine", "burger")])
+    if "bakery" in lower:
+        filters.extend([("shop", "bakery"), ("amenity", "cafe")])
+    if any(term in lower for term in ["gym", "fitness", "workout"]):
+        filters.extend([("leisure", "fitness_centre"), ("sport", "fitness")])
+    if "yoga" in lower:
+        filters.extend([("leisure", "fitness_centre"), ("sport", "yoga")])
+    if any(term in lower for term in ["salon", "beauty", "spa"]):
+        filters.extend([("shop", "hairdresser"), ("shop", "beauty"), ("leisure", "spa")])
+    if any(term in lower for term in ["clinic", "medical", "health", "dental", "doctor"]):
+        filters.extend([("amenity", "clinic"), ("amenity", "doctors"), ("amenity", "dentist"), ("amenity", "hospital")])
+    if any(term in lower for term in ["coworking", "workspace", "office"]):
+        filters.extend([("office", "coworking"), ("amenity", "coworking_space"), ("amenity", "cafe")])
+    if any(term in lower for term in ["hotel", "stay", "hostel"]):
+        filters.extend([("tourism", "hotel"), ("tourism", "hostel"), ("tourism", "guest_house")])
+    if any(term in lower for term in ["retail", "boutique", "fashion", "clothes"]):
+        filters.extend([("shop", "clothes"), ("shop", "fashion"), ("shop", "boutique")])
+    if "juice" in lower:
+        filters.extend([("amenity", "cafe"), ("shop", "beverages")])
+
+    if not filters and is_local_physical_idea(idea):
+        filters.extend([("amenity", "cafe"), ("amenity", "restaurant")])
+
+    deduped = []
+    seen = set()
+    for item in filters:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+    return deduped[:10]
+
+
+def overpass_filter_block(filters: List[Tuple[str, str]], lat: float, lon: float, radius_m: int) -> str:
+    lines = []
+    for key, value in filters:
+        lines.append(f'node(around:{radius_m},{lat},{lon})["{key}"="{value}"];')
+        lines.append(f'way(around:{radius_m},{lat},{lon})["{key}"="{value}"];')
+        lines.append(f'relation(around:{radius_m},{lat},{lon})["{key}"="{value}"];')
+    return "\n".join(lines)
+
+
+def local_place_score(idea: str, tags: Dict[str, str], name: str) -> int:
+    lower = idea.lower()
+    name_lower = name.lower()
+    category = {
+        "amenity": tags.get("amenity", ""),
+        "shop": tags.get("shop", ""),
+        "leisure": tags.get("leisure", ""),
+        "tourism": tags.get("tourism", ""),
+        "office": tags.get("office", ""),
+        "sport": tags.get("sport", ""),
+    }
+    score = 50
+
+    if any(term in lower for term in ["matcha", "tea", "coffee", "cafe", "beverage", "dessert"]):
+        if category["shop"] in {"tea", "coffee"}:
+            score -= 30
+        if category["amenity"] == "cafe":
+            score -= 24
+        if category["amenity"] == "restaurant":
+            score += 10
+    if "bakery" in lower and category["shop"] == "bakery":
+        score -= 30
+    if any(term in lower for term in ["gym", "fitness"]) and category["leisure"] == "fitness_centre":
+        score -= 30
+    if "yoga" in lower and category["sport"] == "yoga":
+        score -= 30
+    if any(term in lower for term in ["salon", "beauty", "spa"]) and (category["shop"] in {"hairdresser", "beauty"} or category["leisure"] == "spa"):
+        score -= 30
+    if any(term in lower for term in ["clinic", "medical", "health", "dental", "doctor"]) and category["amenity"] in {"clinic", "doctors", "dentist", "hospital"}:
+        score -= 30
+    if any(term in lower for term in ["coworking", "workspace"]) and (category["office"] == "coworking" or category["amenity"] == "coworking_space"):
+        score -= 30
+
+    for keyword in re.findall(r"[a-zA-Z]{4,}", lower):
+        if keyword in name_lower:
+            score -= 8
+    return score
+
+
+def place_search_query(idea: str) -> str:
+    lower = idea.lower()
+    if any(term in lower for term in ["matcha", "tea"]):
+        return "tea cafe"
+    if any(term in lower for term in ["coffee", "cafe", "beverage"]):
+        return "cafe coffee"
+    if "bakery" in lower:
+        return "bakery cafe"
+    if any(term in lower for term in ["burger", "burgers"]):
+        return "burger restaurant"
+    if any(term in lower for term in ["pizza"]):
+        return "pizza restaurant"
+    if any(term in lower for term in ["fast food", "quick service", "takeaway", "sandwich"]):
+        return "fast food restaurant"
+    if any(term in lower for term in ["restaurant", "food", "lunch", "dinner", "breakfast"]):
+        return "restaurant"
+    if any(term in lower for term in ["juice", "smoothie"]):
+        return "juice"
+    if any(term in lower for term in ["gym", "fitness"]):
+        return "gym fitness"
+    if "yoga" in lower:
+        return "yoga"
+    if any(term in lower for term in ["salon", "beauty", "spa"]):
+        return "salon spa"
+    if any(term in lower for term in ["clinic", "medical", "health", "dental", "doctor"]):
+        return "clinic"
+    return idea_search_terms(idea)
+
+
+def foursquare_categories(idea: str) -> str:
+    lower = idea.lower()
+    categories = []
+    if any(term in lower for term in ["matcha", "tea", "coffee", "cafe", "beverage", "dessert"]):
+        categories.extend(["13032", "13034", "13035", "13036"])
+    if any(term in lower for term in ["restaurant", "food", "lunch", "dinner", "breakfast"]):
+        categories.append("13065")
+    if "bakery" in lower:
+        categories.append("13002")
+    if any(term in lower for term in ["gym", "fitness"]):
+        categories.append("18021")
+    if "yoga" in lower:
+        categories.append("18060")
+    if any(term in lower for term in ["salon", "beauty", "spa"]):
+        categories.extend(["11064", "11073"])
+    if any(term in lower for term in ["clinic", "medical", "health", "dental", "doctor"]):
+        categories.extend(["15014", "15007", "15010"])
+    return ",".join(dict.fromkeys(categories))
+
+
+def search_foursquare_places(idea: str, region: str) -> List[Dict[str, str]]:
+    if not FOURSQUARE_API_KEY or not is_local_physical_idea(idea):
+        return []
+
+    location = geocode_region(region)
+    params = {
+        "query": place_search_query(idea),
+        "limit": 10,
+        "radius": 6000,
+        "sort": "RELEVANCE",
+        "fields": "fsq_id,name,categories,location,distance,geocodes,website,tel",
+    }
+    if location:
+        params["ll"] = f"{location['lat']},{location['lon']}"
+    else:
+        params["near"] = region
+
+    categories = foursquare_categories(idea)
+    if categories:
+        params["categories"] = categories
+
+    try:
+        response = requests.get(
+            "https://api.foursquare.com/v3/places/search",
+            params=params,
+            headers={
+                "Accept": "application/json",
+                "Authorization": FOURSQUARE_API_KEY,
+            },
+            timeout=18,
+        )
+        response.raise_for_status()
+        results = response.json().get("results", [])
+    except Exception as exc:
+        app.logger.warning("Foursquare place search failed for %s/%s: %s", idea, region, exc)
+        return []
+
+    places = []
+    for result in results:
+        name = (result.get("name") or "").strip()
+        if not name:
+            continue
+        categories_text = ", ".join(
+            category.get("name", "")
+            for category in result.get("categories", [])
+            if category.get("name")
+        )
+        address = result.get("location", {}).get("formatted_address") or ", ".join(
+            part for part in [
+                result.get("location", {}).get("address"),
+                result.get("location", {}).get("locality"),
+                result.get("location", {}).get("region"),
+            ] if part
+        )
+        distance = result.get("distance")
+        distance_text = f"{round(distance / 1000, 1)} km away" if isinstance(distance, (int, float)) else "nearby"
+        fsq_id = result.get("fsq_id", "")
+        url = result.get("website") or (f"https://foursquare.com/v/{fsq_id}" if fsq_id else "")
+        phone = result.get("tel", "")
+        snippet_parts = [
+            categories_text or "Local business",
+            f"{distance_text} from {region}",
+            address,
+            f"Phone: {phone}" if phone else "",
+        ]
+        places.append(
+            {
+                "query": f"Foursquare Places: {params['query']}",
+                "title": name,
+                "snippet": ". ".join(part for part in snippet_parts if part),
+                "url": url,
+                "source": "foursquare",
+            }
+        )
+    return places
+
+
+def google_included_type(idea: str) -> str:
+    lower = idea.lower()
+    if any(term in lower for term in ["coffee", "cafe", "matcha", "tea"]):
+        return "cafe"
+    if "bakery" in lower:
+        return "bakery"
+    if any(term in lower for term in ["restaurant", "food", "lunch", "dinner", "breakfast", "burger", "burgers", "pizza", "fast food", "quick service", "takeaway", "sandwich"]):
+        return "restaurant"
+    if any(term in lower for term in ["gym", "fitness"]):
+        return "gym"
+    if "spa" in lower:
+        return "spa"
+    if "beauty" in lower or "salon" in lower:
+        return "beauty_salon"
+    if "dental" in lower:
+        return "dentist"
+    if any(term in lower for term in ["clinic", "medical", "health", "doctor"]):
+        return "doctor"
+    return ""
+
+
+def google_review_text(review: Dict[str, Any]) -> str:
+    text = review.get("text", {})
+    if isinstance(text, dict):
+        return text.get("text", "") or text.get("originalText", {}).get("text", "")
+    if isinstance(text, str):
+        return text
+    original = review.get("originalText", {})
+    if isinstance(original, dict):
+        return original.get("text", "")
+    return ""
+
+
+def google_place_details(place_id: str) -> Dict[str, Any]:
+    if not place_id:
+        return {}
+    try:
+        response = requests.get(
+            f"https://places.googleapis.com/v1/places/{place_id}",
+            headers={
+                "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+                "X-Goog-FieldMask": (
+                    "id,displayName,formattedAddress,googleMapsUri,websiteUri,nationalPhoneNumber,"
+                    "rating,userRatingCount,priceLevel,types,reviews,reviewSummary,generativeSummary"
+                ),
+            },
+            timeout=16,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        app.logger.warning("Google Place Details failed for %s: %s", place_id, exc)
+        return {}
+
+
+def search_google_places(idea: str, region: str) -> List[Dict[str, Any]]:
+    if not GOOGLE_MAPS_API_KEY or not is_local_physical_idea(idea):
+        return []
+
+    body: Dict[str, Any] = {
+        "textQuery": f"{place_search_query(idea)} near {region}",
+        "pageSize": 8,
+        "rankPreference": "RELEVANCE",
+        "languageCode": "en",
+    }
+    included_type = google_included_type(idea)
+    if included_type:
+        body["includedType"] = included_type
+        body["strictTypeFiltering"] = False
+
+    try:
+        response = requests.post(
+            "https://places.googleapis.com/v1/places:searchText",
+            json=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+                "X-Goog-FieldMask": (
+                    "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,"
+                    "places.rating,places.userRatingCount,places.types"
+                ),
+            },
+            timeout=18,
+        )
+        response.raise_for_status()
+        results = response.json().get("places", [])
+    except Exception as exc:
+        app.logger.warning("Google Places Text Search failed for %s/%s: %s", idea, region, exc)
+        return []
+
+    places = []
+    for result in results:
+        place_id = result.get("id", "")
+        details = google_place_details(place_id)
+        place = details or result
+        name = place.get("displayName", {}).get("text") or result.get("displayName", {}).get("text") or ""
+        if not name:
+            continue
+        reviews = []
+        for review in place.get("reviews", []) or []:
+            text = google_review_text(review).strip()
+            if not text:
+                continue
+            reviews.append(
+                {
+                    "rating": review.get("rating"),
+                    "text": text[:900],
+                    "relativeTime": review.get("relativePublishTimeDescription", ""),
+                    "author": review.get("authorAttribution", {}).get("displayName", ""),
+                }
+            )
+        rating = place.get("rating") or result.get("rating")
+        review_count = place.get("userRatingCount") or result.get("userRatingCount")
+        maps_url = place.get("googleMapsUri") or result.get("googleMapsUri") or ""
+        review_summary = place.get("reviewSummary", {}).get("text", {}).get("text", "")
+        review_summary_url = place.get("reviewSummary", {}).get("reviewsUri", "")
+        generative_summary = place.get("generativeSummary", {}).get("overview", {}).get("text", "")
+        address = place.get("formattedAddress") or result.get("formattedAddress") or ""
+        types = place.get("types") or result.get("types") or []
+        snippet_parts = [
+            ", ".join(t.replace("_", " ") for t in types[:3]),
+            address,
+            f"Rating: {rating}" if rating else "",
+            f"Reviews: {review_count}" if review_count else "",
+        ]
+        places.append(
+            {
+                "query": f"Google Places: {body['textQuery']}",
+                "title": name,
+                "snippet": ". ".join(part for part in snippet_parts if part),
+                "url": maps_url,
+                "source": "google_places",
+                "placeId": place_id,
+                "rating": rating,
+                "reviewCount": review_count,
+                "reviews": reviews,
+                "reviewSummary": review_summary,
+                "reviewSummaryUrl": review_summary_url,
+                "generativeSummary": generative_summary,
+                "phone": place.get("nationalPhoneNumber", ""),
+                "website": place.get("websiteUri", ""),
+            }
+        )
+    return places
+
+
+def search_local_places(idea: str, region: str) -> List[Dict[str, str]]:
+    if not is_local_physical_idea(idea):
+        return []
+
+    location = geocode_region(region)
+    filters = osm_category_filters(idea)
+    if not location or not filters:
+        return []
+
+    query = f"""
+[out:json][timeout:25];
+(
+{overpass_filter_block(filters, location["lat"], location["lon"], 5500)}
+);
+out center tags 80;
+"""
+    try:
+        response = requests.post(
+            OVERPASS_URL,
+            data={"data": query},
+            headers={"User-Agent": OSM_USER_AGENT},
+            timeout=22,
+        )
+        response.raise_for_status()
+        elements = response.json().get("elements", [])
+    except Exception as exc:
+        app.logger.warning("Overpass local place search failed for %s/%s: %s", idea, region, exc)
+        return []
+
+    places = []
+    seen = set()
+    for element in elements:
+        tags = element.get("tags", {})
+        name = (tags.get("name") or tags.get("brand") or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        category = tags.get("amenity") or tags.get("shop") or tags.get("leisure") or tags.get("tourism") or tags.get("office") or "local business"
+        address = ", ".join(
+            part
+            for part in [
+                tags.get("addr:street"),
+                tags.get("addr:suburb") or tags.get("addr:neighbourhood"),
+                tags.get("addr:city"),
+            ]
+            if part
+        )
+        lat = element.get("lat") or element.get("center", {}).get("lat")
+        lon = element.get("lon") or element.get("center", {}).get("lon")
+        maps_url = f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=18/{lat}/{lon}" if lat and lon else ""
+        places.append(
+            {
+                "_score": local_place_score(idea, tags, name),
+                "query": f"OpenStreetMap Overpass: {filters}",
+                "title": name,
+                "snippet": f"{category.replace('_', ' ').title()} near {location['displayName']}. {address}".strip(),
+                "url": maps_url,
+                "source": "openstreetmap",
+            }
+        )
+        if len(places) >= 50:
+            break
+
+    ranked = sorted(places, key=lambda item: (item.pop("_score", 50), item["title"].lower()))
+    return ranked[:10]
+
+
+def idea_search_terms(idea: str) -> str:
+    stopwords = {
+        "a", "an", "and", "app", "application", "business", "build", "company", "for", "in",
+        "into", "of", "on", "platform", "service", "startup", "that", "the", "to", "with",
+    }
+    words = re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]{2,}", idea.lower())
+    filtered = [word for word in words if word not in stopwords]
+    return " ".join(filtered[:7]) or idea[:80]
+
+
+def competitor_search_queries(idea: str, region: str) -> List[str]:
+    terms = place_search_query(idea) if is_local_physical_idea(idea) else idea_search_terms(idea)
+    return [
+        f'{terms} in "{region}"',
+        f'{terms} near "{region}"',
+        f'best {terms} "{region}"',
+    ]
+
+
+def is_bad_local_result(idea: str, title: str, snippet: str, url: str) -> bool:
+    combined = f"{title} {snippet} {url}".lower()
+    lower = idea.lower()
+    if any(term in combined for term in ["top 10", "directory", "list of", "/category/", "placedigger"]):
+        return True
+    if any(term in combined for term in ["cyber cafe", "internet cafe", "internet caf"]) and not any(term in lower for term in ["cyber", "internet"]):
+        return True
+    return False
+
+
+def search_competitor_evidence(idea: str, region: str) -> List[Dict[str, str]]:
+    seen = set()
+    evidence = []
+
+    for result in search_google_places(idea, region):
+        key = (result.get("placeId") or result.get("url") or result.get("title", "")).lower()
+        if key and key not in seen:
+            seen.add(key)
+            evidence.append(result)
+
+    if len(evidence) >= 5:
+        return evidence[:8]
+
+    for result in search_foursquare_places(idea, region):
+        key = (result.get("url") or result.get("title", "")).lower()
+        if key and key not in seen:
+            seen.add(key)
+            evidence.append(result)
+
+    if len(evidence) >= 5:
+        return evidence[:8]
+
+    for result in search_local_places(idea, region):
+        key = (result.get("url") or result.get("title", "")).lower()
+        if key and key not in seen:
+            seen.add(key)
+            evidence.append(result)
+
+    if len(evidence) >= 8 or not WebSearch:
+        return evidence[:8]
+
+    searcher = WebSearch()
+    for query in competitor_search_queries(idea, region)[:2]:
+        for result in searcher.search(query, max_results=5):
+            url = result.get("url", "")
+            title = result.get("title", "")
+            snippet = result.get("snippet", "")
+            if is_bad_local_result(idea, title, snippet, url):
+                continue
+            key = (url or title).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            evidence.append(
+                {
+                    "query": query,
+                    "title": title,
+                    "snippet": snippet,
+                    "url": url,
+                    "source": "web",
+                }
+            )
+            if len(evidence) >= 8:
+                return evidence
+    return evidence
+
+
+def format_competitor_evidence(evidence: List[Dict[str, str]]) -> str:
+    if not evidence:
+        return "No live competitor search results were available; use careful estimates and label uncertainty."
+
+    lines = ["Live competitor search evidence:"]
+    for index, item in enumerate(evidence, 1):
+        lines.append(f"[{index}] Source: {item.get('source', 'web')}")
+        lines.append(f"[{index}] Query: {item.get('query', '')}")
+        lines.append(f"Title: {item.get('title', '')}")
+        lines.append(f"Snippet: {item.get('snippet', '')}")
+        lines.append(f"URL: {item.get('url', '')}")
+    return "\n".join(lines)
+
+
+def competitors_from_evidence(evidence: List[Dict[str, str]], idea: str, region: str) -> List[Dict[str, str]]:
+    competitors = []
+    seen = set()
+    for item in evidence:
+        name = clean_company_name(item.get("title", ""))
+        key = name.lower()
+        if key in seen or len(name) < 3:
+            continue
+        seen.add(key)
+        snippet = item.get("snippet") or f"Appeared in search results for similar businesses in {region}."
+        competitors.append(
+            {
+                "name": name,
+                "positioning": f"Existing local or reachable alternative found for {region}. Evidence: {snippet[:260]} Source: {item.get('url', 'source unavailable')}",
+                "strengths": "Visible in live local-business/search data, which suggests market presence, discoverability, or category relevance.",
+                "weakness": f"Exact product depth versus '{idea[:80]}' needs manual validation through reviews, menus, pricing pages, or calls.",
+                "threatLevel": "High" if len(competitors) < 2 else "Medium",
+                "source": item.get("source", "web"),
+                "sourceUrl": item.get("url", ""),
+                "rating": item.get("rating"),
+                "reviewCount": item.get("reviewCount"),
+                "reviews": item.get("reviews", []),
+                "reviewSummary": item.get("reviewSummary", ""),
+                "reviewSummaryUrl": item.get("reviewSummaryUrl", ""),
+                "generativeSummary": item.get("generativeSummary", ""),
+            }
+        )
+        if len(competitors) >= 5:
+            break
+    return competitors
+
+
+REVIEW_GAP_KEYWORDS = {
+    "service": ["rude", "slow service", "service", "staff", "waiter", "ignored", "delay", "late"],
+    "wait time": ["waiting", "wait", "delay", "slow", "queue", "late", "time"],
+    "food quality": ["cold", "stale", "taste", "bad food", "quality", "undercooked", "overcooked", "oily"],
+    "pricing": ["expensive", "overpriced", "price", "costly", "not worth", "value"],
+    "cleanliness": ["dirty", "clean", "hygiene", "washroom", "smell", "unclean"],
+    "ambience": ["crowded", "noisy", "ambience", "seating", "music", "space", "parking"],
+    "menu gaps": ["limited", "menu", "options", "variety", "available", "unavailable"],
+}
+
+
+def review_gaps_from_evidence(evidence: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    themes: Dict[str, Dict[str, Any]] = {}
+    for item in evidence:
+        business = item.get("title", "")
+        for review in item.get("reviews", []) or []:
+            text = review.get("text", "")
+            if not text:
+                continue
+            lower = text.lower()
+            rating = review.get("rating")
+            is_negative = isinstance(rating, (int, float)) and rating <= 3
+            for theme, keywords in REVIEW_GAP_KEYWORDS.items():
+                if not any(keyword in lower for keyword in keywords):
+                    continue
+                if not is_negative and not any(marker in lower for marker in ["bad", "poor", "slow", "not", "worst", "expensive", "dirty", "limited"]):
+                    continue
+                bucket = themes.setdefault(theme, {"theme": theme, "mentions": 0, "businesses": set(), "examples": []})
+                bucket["mentions"] += 1
+                if business:
+                    bucket["businesses"].add(business)
+                if len(bucket["examples"]) < 3:
+                    bucket["examples"].append({"business": business, "rating": rating, "text": text[:240]})
+
+        summary_text = " ".join(
+            part for part in [item.get("reviewSummary", ""), item.get("generativeSummary", "")] if part
+        )
+        lower_summary = summary_text.lower()
+        if summary_text and any(marker in lower_summary for marker in ["but", "however", "limited", "crowded", "slow", "expensive", "noisy", "parking", "wait"]):
+            for theme, keywords in REVIEW_GAP_KEYWORDS.items():
+                if not any(keyword in lower_summary for keyword in keywords):
+                    continue
+                bucket = themes.setdefault(theme, {"theme": theme, "mentions": 0, "businesses": set(), "examples": []})
+                bucket["mentions"] += 1
+                if business:
+                    bucket["businesses"].add(business)
+                if len(bucket["examples"]) < 3:
+                    bucket["examples"].append({"business": business, "rating": item.get("rating"), "text": summary_text[:240]})
+
+    gaps = []
+    for item in sorted(themes.values(), key=lambda value: value["mentions"], reverse=True):
+        gaps.append(
+            {
+                "theme": item["theme"],
+                "mentions": item["mentions"],
+                "businesses": sorted(item["businesses"]),
+                "opportunity": review_gap_opportunity(item["theme"]),
+                "examples": item["examples"],
+            }
+        )
+    return gaps[:6]
+
+
+def review_gap_opportunity(theme: str) -> str:
+    opportunities = {
+        "service": "Win with staff training, faster table handling, and visible service standards.",
+        "wait time": "Design faster ordering, prep batching, and clear pickup/dine-in flows.",
+        "food quality": "Compete on consistency, fresh prep, and a smaller high-quality menu.",
+        "pricing": "Use transparent pricing, student/family combos, and clear value bundles.",
+        "cleanliness": "Make hygiene, restroom quality, and table turnover visible operating strengths.",
+        "ambience": "Create quieter seating, better lighting, family comfort, and remote-work friendly zones.",
+        "menu gaps": "Add focused menu variety around the unmet use case without becoming bloated.",
+    }
+    return opportunities.get(theme, "Turn repeated complaints into operating standards for the new concept.")
+
+
+def fallback_agent_output(
+    idea: str,
+    region: str,
+    agent_id: str,
+    context: Dict[str, Any],
+    competitor_evidence: List[Dict[str, str]] | None = None,
+) -> Dict[str, Any]:
     domain = infer_domain(idea)
     market = score_from_idea(idea, 3)
     timing = score_from_idea(idea, 17)
@@ -225,45 +922,24 @@ def fallback_agent_output(idea: str, region: str, agent_id: str, context: Dict[s
     )
     verdict = "GO" if overall >= 80 else "PIVOT" if overall >= 58 else "NO-GO"
 
-    # Premium regional physical competitor analysis for cafe/tea/beverage/food ideas
-    is_matcha = any(term in idea.lower() for term in ["matcha", "cafe", "tea", "coffee", "beverage", "food", "restaurant", "bakery", "juice"])
-    
-    if is_matcha:
+    searched_competitors = competitors_from_evidence(competitor_evidence or [], idea, region)
+    review_gaps = review_gaps_from_evidence(competitor_evidence or [])
+
+    if searched_competitors:
+        competitors = searched_competitors
+    elif is_local_physical_idea(idea):
         competitors = [
             {
-                "name": "Third Wave Coffee",
-                "positioning": f"Premium specialty coffee & community workspaces physically active in the {region} region. Beverage pricing: 220 - 380 INR. Status: Well-funded chain backed by private equity.",
-                "strengths": "Exceptional brand presence, high footfall Prime locations, cozy seating with active remote work culture.",
-                "weakness": "Focused on specialty coffee; authentic, high-quality Japanese ceremonial matcha offerings are secondary.",
-                "threatLevel": "High",
-            },
-            {
-                "name": "Glen's Bakehouse",
-                "positioning": f"Legendary casual cafe, bakery, and dessert landmark serving the local {region} customer base. Pricing: 180 - 450 INR. Status: Highly profitable established regional chain.",
-                "strengths": "Strong local brand equity, iconic signature pastries, desserts, and casual dining foods.",
-                "weakness": "Traditional bakery/cafe format; does not prioritize modern health-conscious wellness products or ceremonial grade matcha.",
-                "threatLevel": "Medium",
-            },
-            {
-                "name": "Chaayos",
-                "positioning": f"Tech-enabled contemporary tea cafe chain operating multiple hubs in {region}. Pricing: 120 - 280 INR. Status: Highly funded by major VCs (Tiger Global, Elevation Capital).",
-                "strengths": "Extensive customized traditional chai flavors, standard snack menu, strong automated operating system.",
-                "weakness": "Mass-market focus on traditional sweet milk teas; lacks premium Japanese ceremonial matcha or tranquil cafe aesthetics.",
-                "threatLevel": "Medium",
-            },
-            {
-                "name": "Tea Villa Cafe",
-                "positioning": f"Premium international tea lounge chain situated in the {region} area. Pricing: 200 - 400 INR. Status: Franchise network.",
-                "strengths": "Very wide selection of international loose leaf teas and premium cafe layout.",
-                "weakness": "Overly broad menu; lacks deep product education and authentic high-grade organic matcha specialization.",
-                "threatLevel": "Medium",
-            },
-            {
-                "name": f"Local {region} Bubble Tea and Juice Outlets",
-                "positioning": f"Niche cold beverage kiosks appealing to younger demographics near {region}. Pricing: 150 - 300 INR. Status: Fragmented independent local owners.",
-                "strengths": "Strong appeal to Gen-Z customers searching for fun, alternative cold drinks.",
-                "weakness": "Perceived as sugar-laden treats rather than daily organic wellness rituals.",
-                "threatLevel": "Low",
+                "name": "No verified local competitor returned",
+                "positioning": (
+                    f"FounderOS could not verify nearby similar businesses for {region} from the configured live place sources. "
+                    "Add FOURSQUARE_API_KEY for stronger coverage, then rerun this analysis."
+                ),
+                "strengths": "Not enough verified live data to make a competitor claim.",
+                "weakness": "A manual Google Maps/Foursquare check is required before making launch decisions.",
+                "threatLevel": "Unknown",
+                "source": "none",
+                "sourceUrl": "",
             }
         ]
     else:
@@ -340,6 +1016,7 @@ def fallback_agent_output(idea: str, region: str, agent_id: str, context: Dict[s
             "willingnessToPay": f"Highest when tied to luxury wellness rituals, daily premium drinks, or high-value remote work comfort."
         },
         "competitors": competitors,
+        "reviewGaps": review_gaps,
         "technicalFeasibility": {
             "complexity": "Moderate. A highly functional, interactive MVP is straightforward, but operations require robust supply chains.",
             "stackRecommendation": (
@@ -509,6 +1186,23 @@ def normalize_scores(output: Dict[str, Any]) -> Dict[str, Any]:
     return output
 
 
+def apply_live_competitors(output: Dict[str, Any], evidence: List[Dict[str, str]], idea: str, region: str) -> Dict[str, Any]:
+    live_competitors = competitors_from_evidence(evidence, idea, region)
+    if not live_competitors:
+        return output
+    output["competitors"] = live_competitors
+    output["reviewGaps"] = review_gaps_from_evidence(evidence)
+    output["competitorSource"] = {
+        "type": "live-local-search",
+        "sources": [
+            {"title": item.get("title", ""), "url": item.get("url", ""), "source": item.get("source", "web")}
+            for item in evidence
+            if item.get("title")
+        ],
+    }
+    return output
+
+
 def provider_meta(data: Dict[str, Any]) -> Dict[str, Any]:
     meta = {"provider": data.pop("_provider", "unknown")}
     if "_errors" in data:
@@ -516,7 +1210,13 @@ def provider_meta(data: Dict[str, Any]) -> Dict[str, Any]:
     return meta
 
 
-def build_prompt(idea: str, region: str, agent: Dict[str, str], context: Dict[str, Any]) -> str:
+def build_prompt(
+    idea: str,
+    region: str,
+    agent: Dict[str, str],
+    context: Dict[str, Any],
+    competitor_evidence: str = "",
+) -> str:
     agent_id = agent["id"]
     agent_name = AGENT_NAMES[agent_id]
     prior_context = json.dumps(context, ensure_ascii=False, indent=2)[:18000]
@@ -559,6 +1259,22 @@ Return strict JSON only:
 Scores must vary across dimensions. Do not cluster everything in the 70s.
 """
 
+    if agent_id == "competitor":
+        output_contract = """
+Return strict JSON only:
+{
+  "summary": "one specific sentence",
+  "output": {
+    "competitors": [
+      { "name": "real local business or substitute", "positioning": "what they sell and where the evidence came from", "strengths": "specific strengths", "weakness": "specific weakness", "threatLevel": "Low|Medium|High" }
+    ],
+    "reviewGaps": [{ "theme": "repeated complaint theme", "mentions": number, "opportunity": "how the startup can exploit this gap" }],
+    "whitespace": "specific local opportunity"
+  }
+}
+Use the live competitor/local business evidence first. If Google review evidence is provided, extract repeated complaints into reviewGaps.
+"""
+
     if agent_id == "report-generator":
         output_contract = """
 Return strict JSON only:
@@ -572,6 +1288,7 @@ Return strict JSON only:
     "competitors": [
       { "name": "real company", "positioning": "include pricing and funding/status here", "strengths": "specific strengths", "weakness": "specific weakness", "threatLevel": "Low|Medium|High" }
     ],
+    "reviewGaps": [{ "theme": "repeated complaint theme from reviews", "mentions": number, "businesses": ["business"], "opportunity": "gap the new startup can attack", "examples": [{ "business": "business", "rating": number, "text": "short excerpt" }] }],
     "technicalFeasibility": { "complexity": "specific difficulty", "stackRecommendation": "actual APIs/frameworks/models", "buildRisks": ["specific risk"], "mvpScope": ["specific scope item"] },
     "timing": { "whyNow": "2025 timing assessment", "tailwinds": ["specific tailwind"], "headwinds": ["specific headwind"] },
     "risks": [{ "risk": "specific risk", "severity": "Low|Medium|High", "mitigation": "specific mitigation" }],
@@ -596,9 +1313,15 @@ Your required mission:
 Prior agent context from this same analysis run:
 {prior_context if prior_context and prior_context != "{}" else "No prior agent output yet."}
 
+Competitor/local business evidence:
+{competitor_evidence or "No extra competitor evidence collected for this agent."}
+
 Quality bar:
 - Analyze this exact idea, not a generic startup.
 - Focus specifically on the target locality/region: "{region}". Name actual physical competitors or local alternatives in "{region}" if the idea has regional or local operations.
+- When competitor evidence is provided, use it as the first source of truth for existing similar businesses and do not replace local evidence with generic global companies.
+- If live local-business evidence is provided, preserve the exact business names from that evidence in the competitor list.
+- If Google Places reviews are present, identify repeated customer complaints and convert them into concrete whitespace opportunities.
 - Use concrete companies, APIs, frameworks, reports, pricing models, regulations, market sizes, and assumptions when relevant.
 - Make estimates explicit; do not invent false certainty.
 - Prefer direct VC memo language over hype.
@@ -638,8 +1361,12 @@ def run_agent():
     if agent_id not in AGENT_INSTRUCTIONS:
         return jsonify({"error": "Invalid idea or agent"}), 400
 
-    default_output = fallback_agent_output(idea, region, agent_id, context)
-    data = call_llm(build_prompt(idea, region, agent, context))
+    competitor_evidence = []
+    if agent_id in {"competitor", "report-generator"}:
+        competitor_evidence = search_competitor_evidence(idea, region)
+
+    default_output = fallback_agent_output(idea, region, agent_id, context, competitor_evidence)
+    data = call_llm(build_prompt(idea, region, agent, context, format_competitor_evidence(competitor_evidence)))
     meta = provider_meta(data)
 
     if meta["provider"] == "structured-fallback":
@@ -652,11 +1379,14 @@ def run_agent():
     data.setdefault("summary", default_output["summary"])
     data.setdefault("output", {})
     data["output"] = merge_defaults(data.get("output"), default_output["output"])
+    if agent_id == "competitor":
+        data["output"] = apply_live_competitors(data["output"], competitor_evidence, idea, region)
     data["output"] = normalize_scores(data["output"])
     data["provider"] = meta["provider"]
 
     if agent_id == "report-generator":
         data["output"] = merge_defaults(data.get("output"), default_output["output"])
+        data["output"] = apply_live_competitors(data["output"], competitor_evidence, idea, region)
         data["output"] = normalize_scores(data["output"])
 
     return jsonify(data)

@@ -111,6 +111,11 @@ export default function Report() {
         </div>
 
         <Panel title="Competitor Breakdown" icon={ExternalLink}>
+          {report.competitors?.some((competitor) => competitor.source) && (
+            <p className="mb-4 text-xs uppercase tracking-[0.14em] text-muted">
+              Sources: {Array.from(new Set(report.competitors.map((competitor) => formatCompetitorSource(competitor.source)).filter(Boolean))).join(', ')}
+            </p>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] text-left text-sm">
               <thead className="border-b border-line text-xs uppercase tracking-[0.14em] text-muted">
@@ -125,8 +130,31 @@ export default function Report() {
               <tbody>
                 {report.competitors.map((competitor) => (
                   <tr key={competitor.name} className="border-b border-line/70 align-top">
-                    <td className="py-4 pr-4 font-medium text-white">{competitor.name}</td>
-                    <td className="px-4 py-4 leading-6 text-muted">{competitor.positioning}</td>
+                    <td className="py-4 pr-4 font-medium text-white">
+                      {competitor.sourceUrl ? (
+                        <a className="inline-flex items-center gap-1 text-white transition hover:text-teal" href={competitor.sourceUrl} target="_blank" rel="noreferrer">
+                          {competitor.name}
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      ) : competitor.name}
+                      {competitor.source && <div className="mt-2 text-xs uppercase tracking-[0.12em] text-muted">{formatCompetitorSource(competitor.source)}</div>}
+                      {(competitor.rating || competitor.reviewCount) && (
+                        <div className="mt-2 text-xs text-muted">
+                          {competitor.rating ? `${competitor.rating} stars` : ''}
+                          {competitor.rating && competitor.reviewCount ? ' / ' : ''}
+                          {competitor.reviewCount ? `${competitor.reviewCount} reviews` : ''}
+                        </div>
+                      )}
+                      {competitor.reviewSummaryUrl && (
+                        <a className="mt-2 inline-flex text-xs text-teal hover:text-white" href={competitor.reviewSummaryUrl} target="_blank" rel="noreferrer">
+                          Google reviews
+                        </a>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 leading-6 text-muted">
+                      {competitor.positioning}
+                      {competitor.reviewSummary && <p className="mt-3 rounded-lg border border-line bg-raised/70 p-3 text-xs leading-5">{competitor.reviewSummary}</p>}
+                    </td>
                     <td className="px-4 py-4 leading-6 text-muted">{competitor.strengths}</td>
                     <td className="px-4 py-4 leading-6 text-muted">{competitor.weakness}</td>
                     <td className="py-4 pl-4"><ThreatPill level={competitor.threatLevel} /></td>
@@ -136,6 +164,32 @@ export default function Report() {
             </table>
           </div>
         </Panel>
+
+        {!!report.reviewGaps?.length && (
+          <Panel title="Review Gaps" icon={TriangleAlert}>
+            <div className="grid gap-3 md:grid-cols-2">
+              {report.reviewGaps.map((gap) => (
+                <div key={gap.theme} className="rounded-xl border border-line bg-raised p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-medium capitalize text-white">{gap.theme}</h3>
+                    <span className="rounded border border-amber/30 bg-amber/10 px-2 py-1 text-xs text-amber">{gap.mentions} mentions</span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-muted">{gap.opportunity}</p>
+                  {!!gap.businesses?.length && <p className="mt-3 text-xs text-muted">Seen in: {gap.businesses.join(', ')}</p>}
+                  {!!gap.examples?.length && (
+                    <div className="mt-3 space-y-2">
+                      {gap.examples.slice(0, 2).map((example) => (
+                        <p key={`${example.business}-${example.text}`} className="rounded-lg border border-line bg-panel p-3 text-xs leading-5 text-muted">
+                          {example.business ? `${example.business}: ` : ''}{example.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Panel>
+        )}
 
         <div className="grid gap-5 xl:grid-cols-2">
           <Panel title="Timing" icon={CheckCircle2}>
@@ -237,6 +291,15 @@ function BulletList({ title, items = [] }) {
       </div>
     </div>
   );
+}
+
+function formatCompetitorSource(source = '') {
+  const normalized = String(source).toLowerCase();
+  if (normalized === 'google_places') return 'Google Maps';
+  if (normalized === 'openstreetmap') return 'OpenStreetMap';
+  if (normalized === 'foursquare') return 'Foursquare';
+  if (normalized === 'web') return 'Web';
+  return source;
 }
 
 function ThreatPill({ level = 'Medium' }) {

@@ -57,8 +57,11 @@ npm run dev
 
 The client runs at `http://localhost:5173`, the Express API at `http://localhost:5000`, and Flask at `http://localhost:8000`.
 
+If you open the client with `127.0.0.1` or a LAN IP address, the frontend now points API calls at the same hostname on port `5000`. For custom dev URLs, add them to `CLIENT_URLS` as a comma-separated list.
+
 ## Notes
 
 - If `GEMINI_API_KEY` is missing, the Flask service uses a deterministic premium-quality local fallback so the complete product flow remains testable.
+- Local physical-business competitor lookup uses Google Places when `GOOGLE_MAPS_API_KEY` is set, Foursquare Places when `FOURSQUARE_API_KEY` is set, then OpenStreetMap Nominatim + Overpass, then DuckDuckGo search as fallback. Google Places can also return review snippets that FounderOS converts into competitor review gaps.
 - Analysis runs are persisted in MongoDB and can be retrieved by report ID.
 - Socket.IO powers live agent progress updates.

@@ -11,15 +11,45 @@ import { createAnalysisRouter } from './routes/analysisRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (config.clientUrls.includes(origin)) return true;
+
+  try {
+    const { hostname, port, protocol } = new URL(origin);
+    const isDevClientPort = port === '5173';
+    const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(hostname);
+    const isPrivateLan =
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname);
+
+    return protocol === 'http:' && isDevClientPort && (isLocalHost || isPrivateLan);
+  } catch {
+    return false;
+  }
+}
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+  }
+};
+
 const io = new Server(server, {
   cors: {
-    origin: config.clientUrl,
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) return callback(null, true);
+      return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
     methods: ['GET', 'POST']
   }
 });
 
 app.use(helmet());
-app.use(cors({ origin: config.clientUrl }));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 
